@@ -490,6 +490,11 @@ class BuildCommand extends Command {
         ].join(','),
         help: 'The $name build desc',
       );
+      argParser.addOption(
+        'targets',
+        valueHelp: 'deb,zip,appimage,rpm',
+        help: 'The linux package formats (comma separated)',
+      );
     } else {
       argParser.addOption(
         'arch',
@@ -806,15 +811,25 @@ if (actualOut != 'app') {
         );
         return;
       case TargetPlatform.linux:
+        final validTargets = ['deb', 'rpm', 'appimage', 'zip'];
+        final targets = argResults?['targets'] ?? <String>[];
+        if (targets.isEmpty) {
+          throw 'Linux app packaging requires '
+              '--targets (deb, rpm, appimage, zip)';
+        }
+        final invalidTargets = targets.where((t) => !validTargets.contains(t)).toList();
+        if (invalidTargets.isNotEmpty) {
+          throw 'Unsupported --targets value(s): '
+              '${invalidTargets.join(', ')} '
+              '(expected deb, rpm, appimage, zip)';
+        }
+
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final targets = [
-          'deb',
-          if (arch == Arch.amd64) 'appimage',
-          if (arch == Arch.amd64) 'rpm',
-        ];
         final defaultTarget = targetMap[arch];
+
         await _setLinuxCoreSetuid();
-        for (final t in targets) {
+
+        for (final t in targets.isEmpty ? [''] : targets) {
           final ext = t == 'appimage' ? 'AppImage' : t;
           final currentSuffix = 'linux-$desc.$ext';
           await _buildDistributor(
@@ -884,18 +899,10 @@ class AutoBuildCommand extends Command {
     );
     argParser.addOption(
       'out',
-      valueHelp: ['app', 'core', 'core-only', 'helper'].join(','),
+      allowed: ['core', 'core-only'],
       defaultsTo: 'core',
-      help: 'Build output type',
-    );
-    argParser.addOption(
-      'core-hash',
-      help: 'SHA256 hash of the core binary when --out=helper',
-    );
-    argParser.addOption(
-      'env',
-      valueHelp: ['pre', 'stable'].join(','),
-      help: 'Build env',
+      help: 'Build output type; auto only builds the core. '
+          'Package with: dart setup.dart <platform> --out app',
     );
     argParser.addFlag(
       'compatible',
@@ -1007,11 +1014,9 @@ class AutoBuildCommand extends Command {
     await cmd.execute(
       archName: archName,
       out: argResults?['out'] ?? 'core',
-      env: argResults?['env'] ?? 'pre',
       dev: argResults?['dev'] ?? false,
       ensure: argResults?['ensure'] ?? false,
       compatible: argResults?['compatible'] ?? false,
-      coreHash: argResults?['core-hash'] as String?,
     );
   }
 }
