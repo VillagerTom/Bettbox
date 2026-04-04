@@ -339,6 +339,11 @@ class BuildCommand extends Command {
         ].join(','),
         help: 'The $name build desc',
       );
+      argParser.addOption(
+        'targets',
+        valueHelp: 'deb,zip,appimage,rpm',
+        help: 'The linux package formats (comma separated)',
+      );
     } else {
       argParser.addOption(
         'arch',
@@ -632,13 +637,24 @@ class BuildCommand extends Command {
         );
         return;
       case TargetPlatform.linux:
+	      final validTargets = ['deb', 'rpm', 'appimage', 'zip'];
+        final targets = argResults?['targets'];
+        if (targets == null || targets.isEmpty) {
+          throw 'Invalid targets parameter';
+        }
+	      List<String> invalidTargets = [];
+	      for (final t in targets) {
+	        if (!validTargets.contains(t)) {
+	          invalidTargets.add(t);
+	        }
+	      }
+	      if (invalidTargets.isNotEmpty) {
+	        throw 'Invalid targets parameter: ${invalidTargets.join(', ')}';
+	      }
+
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final targets = [
-          'deb',
-          if (arch == Arch.amd64) 'appimage',
-          if (arch == Arch.amd64) 'rpm',
-        ];
         final defaultTarget = targetMap[arch];
+
         for (final t in targets) {
           final ext = t == 'appimage' ? 'AppImage' : t;
           final currentSuffix = 'linux-$desc.$ext';
