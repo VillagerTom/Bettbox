@@ -493,6 +493,7 @@ class BuildCommand extends Command {
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
         final targets = [
           'deb',
+          'zip',
           if (arch == Arch.amd64) 'appimage',
           if (arch == Arch.amd64) 'rpm',
         ].join(',');

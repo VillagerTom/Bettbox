@@ -97,6 +97,7 @@ jobs:
             libayatana-appindicator3-dev \
             libkeybinder-3.0-dev \
             locate \
+            p7zip \
             ${{ matrix.arch == 'amd64' && 'rpm patchelf libfuse2' || '' }} 
             
           _arch=${{ matrix.arch == 'amd64' && 'x86_64' || 'aarch64' }}
