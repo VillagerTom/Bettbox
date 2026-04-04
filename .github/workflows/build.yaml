@@ -4,11 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
+  IS_STABLE: ${{ github.ref_type == 'tag' && !contains(github.ref, '-') }}
   IS_PRERELEASE: ${{ contains(github.ref_name, 'pre') }}
-  SHOULD_RELEASE: ${{ !contains(github.ref, '-') || contains(github.ref_name, 'pre') }}
   GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   SENTRY_BACKEND: none
@@ -207,7 +207,7 @@ jobs:
           fi
 
       - name: Release
-        if: ${{ env.SHOULD_RELEASE == 'true' }}
+        if: ${{ env.IS_STABLE == 'true' || env.IS_PRERELEASE == 'true' }}
         uses: softprops/action-gh-release@v3.0.0
         with:
           files: ./dist/*
