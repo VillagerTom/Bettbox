@@ -86,7 +86,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Dependencies and AppImageTool
+      - name: Install Dependencies and AppImageTool (linux)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
@@ -97,14 +97,14 @@ jobs:
             libayatana-appindicator3-dev \
             libkeybinder-3.0-dev \
             locate \
-            ${{ matrix.arch == 'amd64' && 'rpm patchelf libfuse2' }} 
+            ${{ matrix.arch == 'amd64' && 'rpm patchelf libfuse2' || '' }} 
             
           _arch=${{ matrix.arch == 'amd64' && 'x86_64' || 'aarch64' }}
           wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${_arch}.AppImage
           chmod +x appimagetool
           sudo mv appimagetool /usr/local/bin/
 
-      - name: Install Dependencies
+      - name: Install Dependencies (macos)
         if: matrix.platform == 'macos'
         run: |
           npm install -g appdmg
