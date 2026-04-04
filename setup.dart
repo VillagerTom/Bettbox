@@ -320,6 +320,11 @@ class BuildCommand extends Command {
         valueHelp: arches.map((e) => e.name).join(','),
         help: 'The $name build desc',
       );
+      argParser.addOption(
+        'targets',
+        valueHelp: 'deb,zip,appimage,rpm',
+        help: 'The linux package formats (comma separated)',
+      );
     } else {
       argParser.addOption('arch', help: 'The $name build archName');
     }
@@ -491,12 +496,15 @@ class BuildCommand extends Command {
         return;
       case Target.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final targets = [
-          'deb',
-          'zip',
-          if (arch == Arch.amd64) 'appimage',
-          if (arch == Arch.amd64) 'rpm',
-        ].join(',');
+        final userTargets = argResults?['targets'];
+        final targets =
+            userTargets ??
+            [
+              'deb',
+              'zip',
+              if (arch == Arch.amd64) 'appimage',
+              if (arch == Arch.amd64) 'rpm',
+            ].join(',');
         final defaultTarget = targetMap[arch];
         await _checkLinuxDependencies();
         _buildDistributor(
