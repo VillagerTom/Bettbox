@@ -86,7 +86,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Dependencies and AppImageTool (linux)
+      - name: Install Dependencies (linux)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
@@ -136,7 +136,12 @@ jobs:
         run: |
           flutter pub get
           dart run build_runner build -d
-          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.compatible == true && '--compatible' || '' }}
+          dart setup.dart \
+            ${{ matrix.platform }} \
+            --arch ${{ matrix.arch }} \
+            ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} \
+            ${{ matrix.compatible == true && '--compatible' || '' }} \
+            ${{ matrix.platform == 'linux' && '--targets=deb' && matrix.arch == 'amd64' && ',rpm,appimage' || '' }}
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6

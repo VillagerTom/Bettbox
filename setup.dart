@@ -395,9 +395,9 @@ class BuildCommand extends Command {
       // requiredLibs['fuse'] = 'libfuse2';
       // libfuse2 是 appimagetool 的运行时依赖，不适用 pkg-config
       final result = await Process.run(
-        'sh', ['-c', 'ldconfig -p | grep -q libfuse.so.2'],
+        'sh', ['-c', 'ldconfig -p | grep -q libfuse.so.2']
       );
-      if (result.exitCode != 0 ) {
+      if (result.exitCode != 0) {
         missing.add('libfuse2');
       }
     }
@@ -538,15 +538,10 @@ class BuildCommand extends Command {
         return;
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final userTargets = argResults?['targets'];
-        final targets =
-            userTargets ??
-            [
-              'deb',
-              'zip',
-              if (arch == Arch.amd64) 'appimage',
-              if (arch == Arch.amd64) 'rpm',
-            ].join(',');
+        final targets = argResults?['targets'];
+        if (targets == null || targets.trim().isEmpty) {
+          throw 'Invalid targets parameter';
+        }
         final defaultTarget = targetMap[arch];
         await _checkLinuxDependencies(targets);
         _buildDistributor(
