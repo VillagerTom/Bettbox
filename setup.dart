@@ -392,7 +392,14 @@ class BuildCommand extends Command {
       'libcurl': 'libcurl',
     };
     if (targets.contains('appimage')) {
-      requiredLibs['fuse'] = 'libfuse2';
+      // requiredLibs['fuse'] = 'libfuse2';
+      // libfuse2 是 appimagetool 的运行时依赖，不适用 pkg-config
+      final result = await Process.run(
+        'sh', ['-c', 'ldconfig -p | grep -q libfuse.so.2'],
+      );
+      if (result.exitCode != 0 ) {
+        missing.add('libfuse2');
+      }
     }
     for (final entry in requiredLibs.entries) {
       final result = await Process.run('pkg-config', ['--exists', entry.key]);
