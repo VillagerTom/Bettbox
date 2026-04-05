@@ -379,7 +379,7 @@ class BuildCommand extends Command {
       requiredCmds.addAll(['appimagetool', 'patchelf']);
     }
     for (final cmd in requiredCmds) {
-      final result = await Process.run('command', ['-v', cmd]);
+      final result = await Process.run('which', [cmd]);
       if (result.exitCode != 0) {
         missing.add(cmd);
       }
