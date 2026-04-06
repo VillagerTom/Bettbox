@@ -371,7 +371,7 @@ class BuildCommand extends Command {
   Future<void> _checkLinuxDependencies(String targets) async {
     final missing = <String>[];
 
-    final requiredCmds = ['gcc', 'cmake', 'pkg-config', 'ninja', 'go'];
+    final requiredCmds = ['gcc', 'clang', 'cmake', 'pkg-config', 'ninja', 'go'];
     if (targets.contains('rpm')) {
       requiredCmds.add('rpm');
     }
