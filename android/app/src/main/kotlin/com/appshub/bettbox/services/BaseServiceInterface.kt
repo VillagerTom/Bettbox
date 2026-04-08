@@ -82,7 +82,7 @@ fun Service.ensureNotificationChannel() {
     val manager = getSystemService(NotificationManager::class.java)
     if (manager?.getNotificationChannel(GlobalState.NOTIFICATION_CHANNEL) == null) {
         manager?.createNotificationChannel(
-            NotificationChannel(GlobalState.NOTIFICATION_CHANNEL, "Foreground Service", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(GlobalState.NOTIFICATION_CHANNEL, "Bettbox Service", NotificationManager.IMPORTANCE_LOW)
         )
     }
 }
@@ -92,7 +92,7 @@ fun Service.startForeground(notification: Notification) {
     ensureNotificationChannel()
 
     val type = if (Build.VERSION.SDK_INT >= 34) {
-        1024
+        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
     } else {
         0
     }

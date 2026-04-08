@@ -105,10 +105,9 @@ class GlobalState {
     config =
         await preferences.getConfig() ?? Config(themeProps: defaultThemeProps);
     await globalState.migrateOldData(config);
-    await AppLocalizations.load(
-      utils.getLocaleForString(config.appSetting.locale) ??
-          WidgetsBinding.instance.platformDispatcher.locale,
-    );
+    final locale = utils.getLocaleForString(config.appSetting.locale) ?? 
+      utils.getSystemLocale();
+    await AppLocalizations.load(locale);
     if (system.isAndroid) {
       _isAndroidTV = await app.isAndroidTV();
     }
@@ -186,6 +185,28 @@ class GlobalState {
     backgroundMode.value = false;
     _backgroundCleanupTimer?.cancel();
     _backgroundCleanupTimer = null;
+    _syncVpnState();
+  }
+
+  Future<void> _syncVpnState() async {
+    if (!system.isAndroid) return;
+    try {
+      final actuallyRunning = await service?.getStatus() ?? false;
+      final flutterState = appState.runTime != null;
+
+      if (actuallyRunning && !flutterState) {
+        await updateStartTime();
+        if (startTime != null) {
+          appState = appState.copyWith(runTime: 0);
+          await startUpdateTasks([appController.updateTraffic]);
+        }
+      } else if (!actuallyRunning && flutterState) {
+        appState = appState.copyWith(runTime: null);
+        startTime = null;
+      }
+    } catch (e) {
+      commonPrint.log('Sync VPN state error: $e');
+    }
   }
 
   Future<void> resumeForegroundUpdates() async {
@@ -319,14 +340,15 @@ class GlobalState {
     required Widget child,
     bool dismissible = true,
   }) async {
+    final context = navigatorKey.currentState!.context;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return await showModal<T>(
-      context: navigatorKey.currentState!.context,
+      context: context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: Colors.black38,
+        barrierColor: isDark ? const Color(0xCC000000) : const Color(0x99000000),
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,
-      filter: commonFilter,
     );
   }
 
@@ -356,6 +378,17 @@ class GlobalState {
       preferences.clearClashConfig();
       preferences.saveConfig(config);
     }
+    
+    if (config.appSetting.locale == null) {
+      final systemLocale = utils.getSystemLocale();
+      config = config.copyWith(
+        appSetting: config.appSetting.copyWith(
+          locale: systemLocale.toString(),
+        ),
+      );
+      preferences.saveConfig(config);
+      this.config = config;
+    }
   }
 
   CoreState getCoreState() {
@@ -374,6 +407,7 @@ class GlobalState {
       config: clashConfig,
       selectedMap: config.currentProfile?.selectedMap ?? {},
       testUrl: config.appSetting.testUrl,
+      overrideTestUrl: config.overrideTestUrl,
     );
     return params;
   }
@@ -736,10 +770,9 @@ class GlobalState {
 }
 
 class DashboardRefreshManager {
-  Timer? _timer1s;
-  Timer? _timer2s;
-  Timer? _timer5s;
+  Timer? _timer;
   bool _isRunning = false;
+  int _counter = 0;
 
   final tick1s = ValueNotifier<int>(0);
   final tick2s = ValueNotifier<int>(0);
@@ -761,35 +794,32 @@ class DashboardRefreshManager {
     return true;
   }
 
-  Future<void> _tryTick(ValueNotifier<int> notifier) async {
+  Future<void> _tryTick() async {
     if (!await _isActive()) {
       return;
     }
-    notifier.value++;
+    _counter++;
+    tick1s.value++;
+    if (_counter % 2 == 0) {
+      tick2s.value++;
+    }
+    if (_counter % 5 == 0) {
+      tick5s.value++;
+    }
   }
 
   void start() {
     if (_isRunning) return;
     _isRunning = true;
-    _timer1s = Timer.periodic(const Duration(seconds: 1), (_) {
-      _tryTick(tick1s);
-    });
-    _timer2s = Timer.periodic(const Duration(seconds: 2), (_) {
-      _tryTick(tick2s);
-    });
-    _timer5s = Timer.periodic(const Duration(seconds: 5), (_) {
-      _tryTick(tick5s);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _tryTick();
     });
   }
 
   void stop() {
     if (!_isRunning) return;
-    _timer1s?.cancel();
-    _timer2s?.cancel();
-    _timer5s?.cancel();
-    _timer1s = null;
-    _timer2s = null;
-    _timer5s = null;
+    _timer?.cancel();
+    _timer = null;
     _isRunning = false;
   }
 }

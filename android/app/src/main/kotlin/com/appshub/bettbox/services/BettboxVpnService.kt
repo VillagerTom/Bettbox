@@ -11,7 +11,6 @@ import android.os.Parcel
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.appshub.bettbox.GlobalState
-import com.appshub.bettbox.core.Core
 import com.appshub.bettbox.extensions.getIpv4RouteAddress
 import com.appshub.bettbox.extensions.getIpv6RouteAddress
 import com.appshub.bettbox.extensions.toCIDR
@@ -26,6 +25,9 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
 
     @Volatile
     private var isStopped = false
+
+    @Volatile
+    private var hasStartedForeground = false
 
     override fun onCreate() {
         super.onCreate()
@@ -94,9 +96,8 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
     override fun stop() {
         if (isStopped) return
         isStopped = true
+        hasStartedForeground = false
 
-        runCatching { Core.stopTun() }
-            .onFailure { Log.e(TAG, "Failed to stop TUN: ${it.message}") }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
                 .onFailure { Log.e(TAG, "Failed to stop foreground: ${it.message}") }
@@ -104,6 +105,7 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         stopSelf()
     }
 
+    @Volatile
     private var cachedBuilder: NotificationCompat.Builder? = null
 
     fun resetNotificationBuilder() {
@@ -123,14 +125,19 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
         val safeTitle = title.ifBlank { "Bettbox" }
         val safeContent = content.trim()
         val builder = notificationBuilder()
+        
         val notification = if (safeContent.isBlank()) {
-            builder.setContentTitle(safeTitle).setContentText(null).build()
+            builder.setContentTitle(safeTitle)
+                .setContentText(null)
+                .setStyle(null)
+                .setTicker(safeTitle)
+                .build()
         } else {
             val separator = " ︙ "
             val combinedText = "$safeTitle$separator$safeContent"
             val spannable = android.text.SpannableString(combinedText)
             val startIndex = safeTitle.length + separator.length
-            if (startIndex < combinedText.length) {
+            if (startIndex in 1..combinedText.length) {
                 spannable.setSpan(
                     android.text.style.RelativeSizeSpan(0.80f),
                     startIndex,
@@ -138,9 +145,19 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
                     android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
             }
-            builder.setContentTitle(spannable).setContentText(null).build()
+            builder.setContentTitle(spannable)
+                .setContentText(null)
+                .setStyle(null)
+                .setTicker(combinedText)
+                .build()
         }
-        this.startForeground(notification)
+        
+        if (!hasStartedForeground) {
+            this.startForeground(notification)
+            hasStartedForeground = true
+        } else {
+            getSystemService(android.app.NotificationManager::class.java)?.notify(GlobalState.NOTIFICATION_ID, notification)
+        }
     }
 
     override fun onTrimMemory(level: Int) {
@@ -161,7 +178,12 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
             }.getOrElse { Log.e(TAG, "onTransact failed: ${it.message}"); false }
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder? {
+        if (intent?.action == VpnService.SERVICE_INTERFACE) {
+            return super.onBind(intent)
+        }
+        return binder
+    }
 
     override fun onUnbind(intent: Intent?): Boolean {
         super.onUnbind(intent)

@@ -7,9 +7,11 @@ on:
   workflow_dispatch:
 
 env:
-  IS_STABLE: ${{ github.event_name != 'workflow_dispatch' }}
+  IS_STABLE: ${{ github.event_name != 'workflow_dispatch' || !contains(github.ref, '-') }}
+  IS_PRERELEASE: ${{ contains(github.ref_name, 'pre') }}
   GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SENTRY_BACKEND: none
   
 jobs:
   build:
@@ -34,10 +36,10 @@ jobs:
             os: ubuntu-24.04
             arch: universal
           - platform: windows
-            os: windows-2022
+            os: windows-2025
             arch: amd64
           - platform: windows
-            os: windows-2022
+            os: windows-2025
             arch: arm64
           - platform: macos
             os: macos-15
@@ -46,11 +48,15 @@ jobs:
             os: macos-15
             arch: amd64
           - platform: linux
-            os: ubuntu-24.04
+            os: ubuntu-22.04
             arch: amd64
           - platform: linux
             os: ubuntu-24.04-arm
             arch: arm64
+          - platform: linux
+            os: ubuntu-22.04
+            arch: amd64
+            compatible: true
           - platform: windows
             os: windows-2022
             arch: amd64
@@ -180,19 +186,16 @@ jobs:
       - name: Patch release.md
         run: |
           version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
-          sed "s|VERSION|$version|g" ./.github/release_template.md >> release.md
-
-      - name: Generate sha256
-        if: env.IS_STABLE == 'true'
-        run: |
-          cd ./dist
-          for file in $(find . -type f -not -name "*.sha256"); do
-            sha256sum "$file" > "${file}.sha256"
-          done  
+          if [ "${{ env.IS_PRERELEASE }}" == "true" ]; then
+            sed "s|VERSION|$version|g" ./.github/release_template_pre.md >> release.md
+          else
+            sed "s|VERSION|$version|g" ./.github/release_template.md >> release.md
+          fi
 
       - name: Release
-        if: ${{ env.IS_STABLE == 'true' }}
-        uses: softprops/action-gh-release@v2
+        if: ${{ env.IS_STABLE == 'true' || env.IS_PRERELEASE == 'true' }}
+        uses: softprops/action-gh-release@v2.2.2
         with:
           files: ./dist/*
           body_path: './release.md'
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
