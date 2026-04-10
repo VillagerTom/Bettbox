@@ -455,6 +455,21 @@ class BuildCommand extends Command {
     }
   }
 
+  static Future<void> _checkWindowsDependencies() async {
+    final missing = <String>[];
+    final requiredCmds = ['cargo', 'cmake'];
+    for (final cmd in requiredCmds) {
+      final result = await Process.run('where', [cmd]);
+      if (result.exitCode != 0) {
+        missing.add(cmd);
+      }
+    }
+    if (missing.isNotEmpty) {
+      throw 'Missing required dependencies: ${missing.join(", ")}. '
+          'Please install them first. See README for details.';
+    }
+  }
+
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
     final infoPlistPath = 'macos/Runner/Info.plist';
     final file = File(infoPlistPath);
@@ -560,6 +575,7 @@ class BuildCommand extends Command {
 
     switch (platform) {
       case TargetPlatform.windows:
+        await _checkWindowsDependencies();
         final token = platform != TargetPlatform.android
             ? await Build.calcSha256(corePaths.first)
             : null;
