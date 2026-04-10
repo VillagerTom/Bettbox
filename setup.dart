@@ -63,7 +63,7 @@ extension PlatformExt on TargetPlatform {
   }
 }
 
-enum Mode { core, lib }
+enum CoreMode { core, lib }
 
 enum Arch { amd64, arm64, arm }
 
@@ -182,13 +182,35 @@ class Build {
     return sha256.convert(await stream.reduce((a, b) => a + b)).toString();
   }
 
+  static Future<void> _checkCoreDependencies(String? cgoCc) async {
+    final missing = <String>[];
+    final requiredCmds = ['go'];
+    if (cgoCc != null) requiredCmds.add(cgoCc);
+
+    for (final cmd in requiredCmds) {
+      bool exists;
+      if (Platform.isWindows) {
+        final result = await Process.run('where', [cmd]);
+        exists = result.exitCode == 0;
+      } else {
+        final result = await Process.run('which', [cmd]);
+        exists = result.exitCode == 0;
+      }
+      if (!exists) missing.add(cmd);
+    }
+    if (missing.isNotEmpty) {
+      throw 'Missing required dependencies: ${missing.join(", ")}. '
+          'Please install them first. See README for details.';
+    }
+  }
+
   static Future<List<String>> buildCore({
-    required Mode mode,
+    required CoreMode mode,
     required TargetPlatform platform,
     Arch? arch,
     bool compatible = false,
   }) async {
-    final isLib = mode == Mode.lib;
+    final isLib = mode == CoreMode.lib;
 
     final items = buildItems.where((element) {
       return element.platform == platform &&
@@ -231,6 +253,8 @@ class Build {
       }
 
       final buildTags = getTags(item);
+      
+      await _checkCoreDependencies(env['CC']);
 
       await exec(
         ['go', 'mod', 'tidy'],
@@ -374,11 +398,14 @@ class BuildCommand extends Command {
       .where((element) => element.platform == platform && element.arch != null)
       .map((e) => e.arch!)
       .toList();
-
-  Future<void> _checkLinuxDependencies(String targets) async {
+  
+  static Future<void> _checkLinuxDependencies(String targets) async {
     final missing = <String>[];
 
-    final requiredCmds = ['gcc', 'cmake', 'pkg-config', 'ninja', 'go'];
+    final requiredCmds = ['clang', 'cmake', 'pkg-config', 'ninja'];
+    if (targets.contains('deb')) {
+      requiredCmds.add('dpkg-deb');
+    }
     if (targets.contains('rpm')) {
       requiredCmds.add('rpm');
     }
@@ -421,7 +448,7 @@ class BuildCommand extends Command {
     }
   }
 
-  Future<void> _checkMacosDependencies() async {
+  static Future<void> _checkMacosDependencies() async {
     final result = await Process.run('which', ['appdmg']);
     if (result.exitCode != 0) {
       throw 'Missing appdmg. Please install it with npm.';
@@ -502,7 +529,7 @@ class BuildCommand extends Command {
 
   @override
   Future<void> run() async {
-    final mode = platform == TargetPlatform.android ? Mode.lib : Mode.core;
+    final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
     final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
     final archName = argResults?['arch'];
     final env = argResults?['env'] ?? 'pre';
@@ -520,11 +547,12 @@ class BuildCommand extends Command {
     final corePaths = await Build.buildCore(
       platform: platform,
       arch: arch,
-      mode: mode,
+      mode: coreMode,
       compatible: compatible,
     );
 
     if (out != 'app') {
+      if (!platform.same) print('Platform incompatible, core built only!');
       return;
     }
 
