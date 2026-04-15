@@ -407,10 +407,10 @@ class BuildCommand extends Command {
       requiredCmds.add('dpkg-deb');
     }
     if (targets.contains('rpm')) {
-      requiredCmds.add('rpm');
+      requiredCmds.addAll(['rpm', 'patchelf']);
     }
     if (targets.contains('appimage')) {
-      requiredCmds.addAll(['appimagetool', 'patchelf']);
+      requiredCmds.addAll(['appimagetool', 'locate']);
     }
     for (final cmd in requiredCmds) {
       final result = await Process.run('which', [cmd]);
