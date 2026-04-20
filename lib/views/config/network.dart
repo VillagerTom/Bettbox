@@ -6,7 +6,6 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 Future<void> _handleNetworkConfigChange(WidgetRef ref) async {
   final bool isVpnOrTunEnabled;
@@ -19,19 +18,20 @@ Future<void> _handleNetworkConfigChange(WidgetRef ref) async {
   final isCoreRunning = ref.read(runTimeProvider) != null;
 
   if (isVpnOrTunEnabled && isCoreRunning) {
-    final tipMessage = system.isAndroid 
-        ? appLocalizations.vpnTip 
+    final tipMessage = system.isAndroid
+        ? appLocalizations.vpnTip
         : appLocalizations.restartTip;
     globalState.showNotifier(
       tipMessage,
       actionLabel: appLocalizations.restart,
+      showCountdown: true,
       onAction: () async {
         await globalState.appController.restartCore();
         globalState.showNotifier(appLocalizations.success);
       },
     );
   } else {
-    globalState.appController.applyProfileDebounce(silence: true);
+    globalState.appController.updateClashConfig();
   }
 }
 
@@ -107,6 +107,7 @@ class AllowBypassItem extends ConsumerWidget {
           ref
               .read(vpnSettingProvider.notifier)
               .updateState((state) => state.copyWith(allowBypass: value));
+          await _handleNetworkConfigChange(ref);
         },
       ),
     );
@@ -185,6 +186,7 @@ class Ipv6Item extends ConsumerWidget {
           ref
               .read(vpnSettingProvider.notifier)
               .updateState((state) => state.copyWith(ipv6: value));
+          await _handleNetworkConfigChange(ref);
         },
       ),
     );
@@ -207,6 +209,32 @@ class AutoSetSystemDnsItem extends ConsumerWidget {
           ref
               .read(networkSettingProvider.notifier)
               .updateState((state) => state.copyWith(autoSetSystemDns: value));
+        },
+      ),
+    );
+  }
+}
+
+class StrictRouteItem extends ConsumerWidget {
+  const StrictRouteItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strictRoute = ref.watch(
+      patchClashConfigProvider.select((state) => state.tun.strictRoute),
+    );
+
+    return ListItem.switchItem(
+      title: Text(appLocalizations.strictRoute),
+      subtitle: Text(appLocalizations.strictRouteDesc),
+      delegate: SwitchDelegate(
+        value: strictRoute,
+        onChanged: (value) async {
+          ref
+              .read(patchClashConfigProvider.notifier)
+              .updateState((state) => state.copyWith.tun(strictRoute: value));
+
+          await _handleNetworkConfigChange(ref);
         },
       ),
     );
@@ -270,6 +298,35 @@ class DnsHijackItem extends ConsumerWidget {
                 (state) => state.copyWith.tun(
                   dnsHijack: value ? ['any:53', 'tcp://any:53'] : [],
                 ),
+              );
+          await _handleNetworkConfigChange(ref);
+        },
+      ),
+    );
+  }
+}
+
+class EndpointIndependentNatItem extends ConsumerWidget {
+  const EndpointIndependentNatItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final endpointIndependentNat = ref.watch(
+      patchClashConfigProvider.select(
+        (state) => state.tun.endpointIndependentNat,
+      ),
+    );
+
+    return ListItem.switchItem(
+      title: Text(appLocalizations.endpointIndependentNat),
+      subtitle: Text(appLocalizations.endpointIndependentNatDesc),
+      delegate: SwitchDelegate(
+        value: endpointIndependentNat,
+        onChanged: (value) async {
+          ref
+              .read(patchClashConfigProvider.notifier)
+              .updateState(
+                (state) => state.copyWith.tun(endpointIndependentNat: value),
               );
           await _handleNetworkConfigChange(ref);
         },
@@ -503,81 +560,31 @@ class BypassDomainItem extends StatelessWidget {
   }
 }
 
-class RouteModeItem extends ConsumerWidget {
-  const RouteModeItem({super.key});
+class BypassPrivateRouteItem extends ConsumerWidget {
+  const BypassPrivateRouteItem({super.key});
 
   @override
   Widget build(BuildContext context, ref) {
-    final routeMode = ref.watch(
-      networkSettingProvider.select((state) => state.routeMode),
+    final bypassPrivateRoute = ref.watch(
+      networkSettingProvider.select((state) => state.bypassPrivateRoute),
     );
-    return ListItem<RouteMode>.options(
-      title: Text(appLocalizations.routeMode),
-      subtitle: Text(Intl.message('routeMode_${routeMode.name}')),
-      delegate: OptionsDelegate<RouteMode>(
-        title: appLocalizations.routeMode,
-        options: RouteMode.values,
-        onChanged: (RouteMode? value) {
-          if (value == null) {
-            return;
-          }
+    return ListItem.switchItem(
+      title: Text(appLocalizations.bypassPrivateRoute),
+      subtitle: Text(appLocalizations.bypassPrivateRouteDesc),
+      delegate: SwitchDelegate(
+        value: bypassPrivateRoute,
+        onChanged: (value) async {
           ref
               .read(networkSettingProvider.notifier)
-              .updateState((state) => state.copyWith(routeMode: value));
+              .updateState((state) => state.copyWith(bypassPrivateRoute: value));
+          await _handleNetworkConfigChange(ref);
         },
-        textBuilder: (routeMode) => Intl.message('routeMode_${routeMode.name}'),
-        value: routeMode,
       ),
     );
   }
 }
 
-class RouteAddressItem extends ConsumerWidget {
-  const RouteAddressItem({super.key});
 
-  @override
-  Widget build(BuildContext context, ref) {
-    final bypassPrivate = ref.watch(
-      networkSettingProvider.select(
-        (state) => state.routeMode == RouteMode.bypassPrivate,
-      ),
-    );
-    if (bypassPrivate) {
-      return Container();
-    }
-    return ListItem.open(
-      title: Text(appLocalizations.routeAddress),
-      subtitle: Text(appLocalizations.routeAddressDesc),
-      delegate: OpenDelegate(
-        blur: false,
-        maxWidth: 360,
-        title: appLocalizations.routeAddress,
-        widget: Consumer(
-          builder: (_, ref, _) {
-            final routeAddress = ref.watch(
-              patchClashConfigProvider.select(
-                (state) => state.tun.routeAddress,
-              ),
-            );
-            return ListInputPage(
-              title: appLocalizations.routeAddress,
-              items: routeAddress,
-              titleBuilder: (item) => Text(item),
-              onChange: (items) {
-                ref
-                    .read(patchClashConfigProvider.notifier)
-                    .updateState(
-                      (state) =>
-                          state.copyWith.tun(routeAddress: List.from(items)),
-                    );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
 
 final networkItems = [
   if (system.isAndroid) const VPNItem(),
@@ -596,12 +603,13 @@ final networkItems = [
     items: [
       if (system.isDesktop) const TUNItem(),
       if (system.isMacOS) const AutoSetSystemDnsItem(),
+      const StrictRouteItem(),
       const IcmpForwardingItem(),
       const DnsHijackItem(),
+      const EndpointIndependentNatItem(),
       const TunStackItem(),
       const MtuItem(),
-      const RouteModeItem(),
-      if (!system.isDesktop) const RouteAddressItem(),
+      const BypassPrivateRouteItem(),
     ],
   ),
 ];

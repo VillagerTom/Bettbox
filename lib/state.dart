@@ -12,10 +12,10 @@ import 'package:bett_box/l10n/l10n.dart';
 import 'package:bett_box/plugins/app.dart';
 import 'package:bett_box/plugins/service.dart';
 import 'package:bett_box/providers/state.dart' as providers_state;
+
 import 'package:bett_box/widgets/dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as flutter_riverpod;
 import 'package:material_color_utilities/palettes/core_palette.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -32,6 +32,7 @@ class GlobalState {
   static GlobalState? _instance;
   Map<CacheTag, FixedMap<String, double>> computeHeightMapCache = {};
   bool isService = false;
+  bool isExiting = false;
   Timer? timer;
   Timer? groupsUpdateTimer;
   late Config config;
@@ -78,6 +79,7 @@ class GlobalState {
   }
 
   Future<void> initApp(int version) async {
+    isExiting = false;
     coreSHA256 = const String.fromEnvironment('CORE_SHA256');
     isPre = const String.fromEnvironment('APP_ENV') != 'stable';
     appState = AppState(
@@ -108,8 +110,9 @@ class GlobalState {
     config =
         await preferences.getConfig() ?? Config(themeProps: defaultThemeProps);
     await globalState.migrateOldData(config);
-    final locale = utils.getLocaleForString(config.appSetting.locale) ?? 
-      utils.getSystemLocale();
+    final locale =
+        utils.getLocaleForString(config.appSetting.locale) ??
+        utils.getSystemLocale();
     await AppLocalizations.load(locale);
     if (system.isAndroid) {
       _isAndroidTV = await app.isAndroidTV();
@@ -225,14 +228,12 @@ class GlobalState {
     }
     await appController.updateRunTime();
     await appController.updateTraffic();
-    await startUpdateTasks([
-      appController.updateTraffic,
-    ]);
+    await startUpdateTasks([appController.updateTraffic]);
   }
 
   void _scheduleBackgroundCleanup() {
     _backgroundCleanupTimer?.cancel();
-    _backgroundCleanupTimer = Timer(const Duration(minutes: 2), () {
+    _backgroundCleanupTimer = Timer(const Duration(minutes: 3), () {
       _backgroundCleanupTimer = null;
       if (!backgroundMode.value) {
         return;
@@ -244,9 +245,9 @@ class GlobalState {
   void cleanupBackgroundResources() async {
     final imageCache = PaintingBinding.instance.imageCache;
     imageCache.clearLiveImages();
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 500));
     WidgetsBinding.instance.handleMemoryPressure();
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 500));
     await clashCore.requestGc();
   }
 
@@ -362,16 +363,28 @@ class GlobalState {
     return await showModal<T>(
       context: context,
       configuration: FadeScaleTransitionConfiguration(
-        barrierColor: isDark ? const Color(0xCC000000) : const Color(0x99000000),
+        barrierColor: isDark
+            ? const Color(0xCC000000)
+            : const Color(0x99000000),
         barrierDismissible: dismissible,
       ),
       builder: (_) => child,
     );
   }
 
-  void showNotifier(String text, {VoidCallback? onAction, String? actionLabel}) {
+  void showNotifier(
+    String text, {
+    VoidCallback? onAction,
+    String? actionLabel,
+    bool showCountdown = false,
+  }) {
     if (text.isEmpty) return;
-    navigatorKey.currentContext?.showNotifier(text, onAction: onAction, actionLabel: actionLabel);
+    navigatorKey.currentContext?.showNotifier(
+      text,
+      onAction: onAction,
+      actionLabel: actionLabel,
+      showCountdown: showCountdown,
+    );
   }
 
   Future<void> openUrl(String url, {bool needConfirm = false}) async {
@@ -395,13 +408,11 @@ class GlobalState {
       preferences.clearClashConfig();
       preferences.saveConfig(config);
     }
-    
+
     if (config.appSetting.locale == null) {
       final systemLocale = utils.getSystemLocale();
       config = config.copyWith(
-        appSetting: config.appSetting.copyWith(
-          locale: systemLocale.toString(),
-        ),
+        appSetting: config.appSetting.copyWith(locale: systemLocale.toString()),
       );
       preferences.saveConfig(config);
       this.config = config;
@@ -455,7 +466,7 @@ class GlobalState {
 
     final realPatchConfig = patchConfig.copyWith(
       tun: patchConfig.tun.getRealTun(
-        config.networkProps.routeMode,
+        config.networkProps.bypassPrivateRoute,
         fakeIpRange: patchConfig.dns.fakeIpRange,
         fakeIpRangeV6: patchConfig.dns.fakeIpRangeV6,
       ),
@@ -492,7 +503,12 @@ class GlobalState {
     rawConfig['tun']['dns-hijack'] = realPatchConfig.tun.dnsHijack;
     rawConfig['tun']['stack'] = realPatchConfig.tun.stack.name;
     rawConfig['tun']['route-address'] = realPatchConfig.tun.routeAddress;
-    rawConfig['tun']['auto-route'] = realPatchConfig.tun.autoRoute;
+    rawConfig['tun']['route-exclude-address'] = realPatchConfig.tun.routeExcludeAddress;
+    rawConfig['tun']['auto-route'] = true;
+    rawConfig['tun']['auto-detect-interface'] = true;
+    rawConfig['tun']['strict-route'] = realPatchConfig.tun.strictRoute;
+    rawConfig['tun']['endpoint-independent-nat'] =
+        realPatchConfig.tun.endpointIndependentNat;
     rawConfig['tun']['disable-icmp-forwarding'] =
         realPatchConfig.tun.disableIcmpForwarding;
     rawConfig['tun']['mtu'] = realPatchConfig.tun.mtu;
@@ -632,7 +648,11 @@ class GlobalState {
       final proxyGroups = rawConfig['proxy-groups'] as List;
 
       final Set<String> protectedNames = {
-        'DIRECT', 'REJECT', 'REJECT-DROP', 'COMPATIBLE', 'PASS',
+        'DIRECT',
+        'REJECT',
+        'REJECT-DROP',
+        'COMPATIBLE',
+        'PASS',
       };
       for (final g in proxyGroups) {
         if (g is Map && g['name'] is String) {
@@ -659,7 +679,9 @@ class GlobalState {
             return !filterRegex!.hasMatch(item);
           }).toList();
 
-          if (filtered.isEmpty && (group['use'] == null || (group['use'] is List && group['use'].isEmpty))) {
+          if (filtered.isEmpty &&
+              (group['use'] == null ||
+                  (group['use'] is List && group['use'].isEmpty))) {
             filtered.add('DIRECT');
           }
           group['proxies'] = filtered;
@@ -717,24 +739,19 @@ class GlobalState {
       }
     }
 
-    if (system.isDesktop &&
-        config.networkProps.routeMode == RouteMode.bypassPrivate) {
-      final privateNetworkRules = [
-        'IP-CIDR,127.0.0.0/8,DIRECT,no-resolve',
-        'IP-CIDR6,::1/128,DIRECT,no-resolve',
-        'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve',
-        'IP-CIDR,172.16.0.0/12,DIRECT,no-resolve',
-        'IP-CIDR,192.168.0.0/16,DIRECT,no-resolve',
-        'IP-CIDR,169.254.0.0/16,DIRECT,no-resolve',
-        'IP-CIDR6,fd00::/8,DIRECT,no-resolve',
-        'IP-CIDR6,fe80::/10,DIRECT,no-resolve',
-      ];
-      rules = [...privateNetworkRules, ...rules];
-    }
+
 
     if (config.vpnProps.fcmOptimization) {
       final fcmRules = ['DOMAIN,mtalk.google.com,DIRECT'];
       rules = [...fcmRules, ...rules];
+    }
+
+    if (config.vpnProps.disableQuic) {
+      final isRussian = config.appSetting.locale?.toLowerCase().startsWith('ru') ?? false;
+      final quicRules = config.vpnProps.excludeChina && !isRussian
+          ? ['AND,((NETWORK,UDP),(DST-PORT,443),(NOT,((OR,((GEOSITE,geolocation-cn),(GEOIP,CN,no-resolve)))))),REJECT']
+          : ['AND,((NETWORK,UDP),(DST-PORT,443)),REJECT'];
+      rules = [...quicRules, ...rules];
     }
 
     if (rawConfig['proxy-groups'] == null && originalProxyGroups != null) {
@@ -765,9 +782,8 @@ class GlobalState {
       config['proxy-providers'] ??= {};
       final configJs = json.encode(config);
       final scriptJs = json.encode(currentScript.content);
-      final runtime = getJavascriptRuntime();
 
-      try {
+      return JavaScriptRuntimeManager.execute((runtime) async {
         final res = await runtime.evaluateAsync('''
           (() => {
             const __bettboxConfig = $configJs;
@@ -784,12 +800,11 @@ class GlobalState {
         if (res.isError) throw res.stringResult;
 
         return switch (res.rawResult) {
-          Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
-          _ => Map<String, dynamic>.from(res.rawResult),
-        } ?? config;
-      } finally {
-        runtime.dispose();
-      }
+              Pointer() => runtime.convertValue<Map<String, dynamic>>(res),
+              _ => Map<String, dynamic>.from(res.rawResult),
+            } ??
+            config;
+      });
     });
   }
 }

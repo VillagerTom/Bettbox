@@ -163,6 +163,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "bypassDomainDesc": MessageLookupByLibrary.simpleMessage(
       "Работает только при включённом системном прокси",
     ),
+    "bypassPrivateRoute": MessageLookupByLibrary.simpleMessage(
+      "Обход частной сети",
+    ),
+    "bypassPrivateRouteDesc": MessageLookupByLibrary.simpleMessage(
+      "Автоматически обходить IP-адреса частной сети",
+    ),
     "cacheAlgorithm": MessageLookupByLibrary.simpleMessage("Алгоритм кэша"),
     "cacheCorrupt": MessageLookupByLibrary.simpleMessage(
       "Кэш повреждён. Очистить?",
@@ -298,6 +304,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "directNameserverFollowPolicy": MessageLookupByLibrary.simpleMessage(
       "Прямой DNS следует правилам",
     ),
+    "disableQuic": MessageLookupByLibrary.simpleMessage("Отключить QUIC"),
+    "disableQuicDesc": MessageLookupByLibrary.simpleMessage(
+      "Отключить QUIC для решения сетевых проблем",
+    ),
     "disclaimer": MessageLookupByLibrary.simpleMessage(
       "Отказ от ответственности",
     ),
@@ -335,8 +345,18 @@ class MessageLookup extends MessageLookupByLibrary {
     "enableOverride": MessageLookupByLibrary.simpleMessage(
       "Включить переопределение",
     ),
+    "endpointIndependentNat": MessageLookupByLibrary.simpleMessage(
+      "Улучшенный NAT",
+    ),
+    "endpointIndependentNatDesc": MessageLookupByLibrary.simpleMessage(
+      "Включить NAT независимый от конечной точки",
+    ),
     "entries": MessageLookupByLibrary.simpleMessage("записей"),
     "exclude": MessageLookupByLibrary.simpleMessage("Скрыть из недавних"),
+    "excludeChina": MessageLookupByLibrary.simpleMessage("Исключить Китай"),
+    "excludeChinaDesc": MessageLookupByLibrary.simpleMessage(
+      "Разрешить QUIC-трафик Китая вместо полной блокировки",
+    ),
     "excludeDesc": MessageLookupByLibrary.simpleMessage(
       "Скрыть приложение из недавних задач",
     ),
@@ -879,21 +899,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "restartCoreTitle": MessageLookupByLibrary.simpleMessage("Перезапуск ядра"),
     "restartTip": MessageLookupByLibrary.simpleMessage(
-      "Изменения вступят в силу после перезапуска приложения",
+      "Изменения вступят в силу после перезапуска TUN",
     ),
     "retry": MessageLookupByLibrary.simpleMessage("Повторить"),
     "rotatingCircle": MessageLookupByLibrary.simpleMessage("Вращающийся круг"),
-    "routeAddress": MessageLookupByLibrary.simpleMessage("Адрес маршрутизации"),
-    "routeAddressDesc": MessageLookupByLibrary.simpleMessage(
-      "Настроить адрес прослушивания маршрутизации",
-    ),
-    "routeMode": MessageLookupByLibrary.simpleMessage("Режим маршрутизации"),
-    "routeMode_bypassPrivate": MessageLookupByLibrary.simpleMessage(
-      "Обход частных адресов",
-    ),
-    "routeMode_config": MessageLookupByLibrary.simpleMessage(
-      "Использовать конфигурацию",
-    ),
     "ru": MessageLookupByLibrary.simpleMessage("Русский"),
     "rule": MessageLookupByLibrary.simpleMessage("Правила"),
     "ruleName": MessageLookupByLibrary.simpleMessage("Имя правила"),
@@ -983,6 +992,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "storeFix": MessageLookupByLibrary.simpleMessage("Исправление магазина"),
     "storeFixDesc": MessageLookupByLibrary.simpleMessage(
       "Исправляет проблемы загрузки Google Play",
+    ),
+    "strictRoute": MessageLookupByLibrary.simpleMessage(
+      "Строгая маршрутизация",
+    ),
+    "strictRouteDesc": MessageLookupByLibrary.simpleMessage(
+      "Использовать строгий режим маршрутизации TUN",
     ),
     "style": MessageLookupByLibrary.simpleMessage("Стиль"),
     "subRule": MessageLookupByLibrary.simpleMessage("Подправило"),

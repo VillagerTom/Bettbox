@@ -394,6 +394,46 @@ class AppLocalizations {
     );
   }
 
+  /// `Disable QUIC`
+  String get disableQuic {
+    return Intl.message(
+      'Disable QUIC',
+      name: 'disableQuic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Disable QUIC to resolve specific network issues`
+  String get disableQuicDesc {
+    return Intl.message(
+      'Disable QUIC to resolve specific network issues',
+      name: 'disableQuicDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude China`
+  String get excludeChina {
+    return Intl.message(
+      'Exclude China',
+      name: 'excludeChina',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Allow China QUIC traffic instead of blocking all`
+  String get excludeChinaDesc {
+    return Intl.message(
+      'Allow China QUIC traffic instead of blocking all',
+      name: 'excludeChinaDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `FCM Optimization`
   String get fcmOptimization {
     return Intl.message(
@@ -3689,6 +3729,26 @@ class AppLocalizations {
     return Intl.message('Stack Mode', name: 'stackMode', desc: '', args: []);
   }
 
+  /// `Strict Route`
+  String get strictRoute {
+    return Intl.message(
+      'Strict Route',
+      name: 'strictRoute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use TUN strict routing mode`
+  String get strictRouteDesc {
+    return Intl.message(
+      'Use TUN strict routing mode',
+      name: 'strictRouteDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `ICMP Forwarding`
   String get icmpForwarding {
     return Intl.message(
@@ -3719,6 +3779,26 @@ class AppLocalizations {
     return Intl.message(
       'Redirect DNS queries to internal DNS module',
       name: 'dnsHijackDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `NAT Enhancement`
+  String get endpointIndependentNat {
+    return Intl.message(
+      'NAT Enhancement',
+      name: 'endpointIndependentNat',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable endpoint-independent NAT`
+  String get endpointIndependentNatDesc {
+    return Intl.message(
+      'Enable endpoint-independent NAT',
+      name: 'endpointIndependentNatDesc',
       desc: '',
       args: [],
     );
@@ -3834,46 +3914,21 @@ class AppLocalizations {
     return Intl.message('System', name: 'system', desc: '', args: []);
   }
 
-  /// `Route Mode`
-  String get routeMode {
-    return Intl.message('Route Mode', name: 'routeMode', desc: '', args: []);
-  }
-
-  /// `Bypass Private IPs`
-  String get routeMode_bypassPrivate {
+  /// `Bypass Private Network`
+  String get bypassPrivateRoute {
     return Intl.message(
-      'Bypass Private IPs',
-      name: 'routeMode_bypassPrivate',
+      'Bypass Private Network',
+      name: 'bypassPrivateRoute',
       desc: '',
       args: [],
     );
   }
 
-  /// `Use Config`
-  String get routeMode_config {
+  /// `Automatically bypass private network IP addresses`
+  String get bypassPrivateRouteDesc {
     return Intl.message(
-      'Use Config',
-      name: 'routeMode_config',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Route Address`
-  String get routeAddress {
-    return Intl.message(
-      'Route Address',
-      name: 'routeAddress',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Configure route listen address`
-  String get routeAddressDesc {
-    return Intl.message(
-      'Configure route listen address',
-      name: 'routeAddressDesc',
+      'Automatically bypass private network IP addresses',
+      name: 'bypassPrivateRouteDesc',
       desc: '',
       args: [],
     );
@@ -4874,10 +4929,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Restart the app for changes to take effect`
+  /// `Restart TUN for changes to take effect`
   String get restartTip {
     return Intl.message(
-      'Restart the app for changes to take effect',
+      'Restart TUN for changes to take effect',
       name: 'restartTip',
       desc: '',
       args: [],

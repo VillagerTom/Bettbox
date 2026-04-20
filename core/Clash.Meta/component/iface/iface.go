@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/metacubex/mihomo/common/singledo"
@@ -25,6 +26,13 @@ var (
 	ErrAddrNotFound  = errors.New("addr not found")
 )
 
+var (
+	ifaceLogMu         sync.Mutex
+	ifaceLogLastTime   time.Time
+	ifaceLogCount      int
+	ifaceLogSuppressed bool
+)
+
 type ifaceCache struct {
 	ifMapByName map[string]*Interface
 	ifMapByAddr map[netip.Addr]*Interface
@@ -32,6 +40,30 @@ type ifaceCache struct {
 }
 
 var caches = singledo.NewSingle[*ifaceCache](time.Second * 20)
+
+func ShouldLogIfaceError() bool {
+	ifaceLogMu.Lock()
+	defer ifaceLogMu.Unlock()
+
+	now := time.Now()
+	if now.Sub(ifaceLogLastTime) >= time.Second {
+		ifaceLogLastTime = now
+		ifaceLogCount = 0
+		if ifaceLogSuppressed {
+			ifaceLogSuppressed = false
+			return true
+		}
+	}
+	if ifaceLogCount >= 10 {
+		if !ifaceLogSuppressed {
+			ifaceLogSuppressed = true
+			return true
+		}
+		return false
+	}
+	ifaceLogCount++
+	return true
+}
 
 func getCache() (*ifaceCache, error) {
 	value, err, _ := caches.Do(func() (*ifaceCache, error) {
@@ -112,6 +144,9 @@ func ResolveInterface(name string) (*Interface, error) {
 
 	iface, ok := ifaces[name]
 	if !ok {
+		if ShouldLogIfaceError() {
+			return nil, ErrIfaceNotFound
+		}
 		return nil, ErrIfaceNotFound
 	}
 
@@ -130,6 +165,10 @@ func ResolveInterfaceByAddr(addr netip.Addr) (*Interface, error) {
 	}
 	iface, ok := cache.ifTable.Lookup(addr)
 	if !ok {
+		// 始终返回错误，但只在需要时记录日志
+		if ShouldLogIfaceError() {
+			return nil, ErrIfaceNotFound
+		}
 		return nil, ErrIfaceNotFound
 	}
 
