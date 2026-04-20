@@ -456,18 +456,8 @@ class BuildCommand extends Command {
   }
 
   static Future<void> _checkWindowsDependencies() async {
-    final missing = <String>[];
-    final requiredCmds = ['cargo', 'cmake'];
-    for (final cmd in requiredCmds) {
-      final result = await Process.run('where', [cmd]);
-      if (result.exitCode != 0) {
-        missing.add(cmd);
-      }
-    }
-    if (missing.isNotEmpty) {
-      throw 'Missing required dependencies: ${missing.join(", ")}. '
-          'Please install them first. See README for details.';
-    }
+    final missingCargo = (await Process.run('where', ['cargo'])).exitCode != 0;
+    if (missingCargo) throw 'Missing cargo, please install rustup';
   }
 
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
@@ -525,7 +515,7 @@ class BuildCommand extends Command {
 
     await Build.getDistributor();
     await Build.exec(
-      name: name,
+      name: description,
       Build.getExecutable(
         'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$env',
       ),
