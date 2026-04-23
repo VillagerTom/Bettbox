@@ -175,8 +175,8 @@ jobs:
             ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} \
             ${{ matrix.compatible == true && '--compatible' || '' }} \
             ${{ matrix.platform == 'linux' && '--targets' || ''}} \
-            ${{ matrix.platform == 'linux' && matrix.arch == 'amd64' && 'deb,rpm,appimage' || '' }} \
-            ${{ matrix.platform == 'linux' && matrix.arch == 'arm64' && 'deb' || '' }}
+              ${{ matrix.platform == 'linux' && matrix.arch == 'amd64' && 'deb,rpm,appimage' || '' }} \
+              ${{ matrix.platform == 'linux' && matrix.arch == 'arm64' && 'deb' || '' }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
