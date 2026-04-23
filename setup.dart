@@ -190,7 +190,7 @@ class Build {
     for (final cmd in requiredCmds) {
       bool exists;
       if (Platform.isWindows) {
-        final result = await Process.run('where', [cmd]);
+        final result = await Process.run('where.exe', [cmd]);
         exists = result.exitCode == 0;
       } else {
         final result = await Process.run('which', [cmd]);
@@ -456,10 +456,19 @@ class BuildCommand extends Command {
     }
   }
 
-  // TODO: Check InnoSetup
+  // TODO: Add checks for Windows ARM
   static Future<void> _checkWindowsDependencies() async {
-    final missingCargo = (await Process.run('where', ['cargo'])).exitCode != 0;
-    if (missingCargo) throw 'Missing cargo, please install rustup';
+    final missingCargo = (await Process.run('where.exe', ['cargo'])).exitCode != 0;
+    final missingInnoSetup = !(File(r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')).existsSync();
+
+    final throwMessage = <String>[];
+    if (missingCargo) throwMessage.add('Missing cargo, please install rustup');
+    if (missingInnoSetup) {
+      throwMessage.add(
+        'Missing ISCC.exe, Inno Setup is not installed or not in the correct path. See README for details'
+      );
+    }
+    if (throwMessage.isNotEmpty) throw throwMessage.join('\n');
   }
 
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
