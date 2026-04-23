@@ -204,6 +204,7 @@ class Build {
     }
   }
 
+  // TODO: Check NDK before calling _getCc()
   static Future<List<String>> buildCore({
     required CoreMode mode,
     required TargetPlatform platform,
@@ -455,6 +456,7 @@ class BuildCommand extends Command {
     }
   }
 
+  // TODO: Check InnoSetup
   static Future<void> _checkWindowsDependencies() async {
     final missingCargo = (await Process.run('where', ['cargo'])).exitCode != 0;
     if (missingCargo) throw 'Missing cargo, please install rustup';
