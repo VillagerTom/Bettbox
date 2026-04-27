@@ -85,6 +85,7 @@ Future<void> checkDeps({
   Map<String, String>? devLibs,
   Map<String, String>? rtLibs,
   List<String>? files,
+  List<String>? ndks,
 }) async {
   final missing = <String>[];
 
@@ -107,6 +108,23 @@ Future<void> checkDeps({
     }
   }
 
+  if (ndks != null) {
+    final sdkmanager = join(Platform.environment['ANDROID_HOME']!, 'cmdline-tools', 'latest', 'bin', 'sdkmanager');
+    final cmdlineToolsExist = File(sdkmanager).existsSync();
+    if (!cmdlineToolsExist) {
+      missing.add('Android SDK Command-line Tools');
+    } else {
+      for (final ndkVersion in ndks) {
+        final result = await Process.run(sdkmanager, ['--list_installed']);
+        final pattern = RegExp('^\\s.${RegExp.escape('ndk;$ndkVersion')}', multiLine: true);
+        final installed = pattern.hasMatch(result.stdout);
+        if (!installed) {
+          missing.add('Android NDK $ndkVersion');
+        }
+      }
+    }
+  }
+
   if (commands != null) {
     for (final cmd in commands) {
       final result = Platform.isWindows
@@ -117,6 +135,7 @@ Future<void> checkDeps({
       }
     }
   }
+  
 
   if (files != null) {
     for (final filePath in files) {
@@ -214,7 +233,6 @@ class Build {
     return sha256.convert(await stream.reduce((a, b) => a + b)).toString();
   }
 
-  //TODO: Consider ANDROID_NDK is null
   static Future<List<String>> buildCore({
     required CoreMode mode,
     required TargetPlatform platform,
@@ -258,8 +276,14 @@ class Build {
         env['CGO_ENABLED'] = '1';
         env['CFLAGS'] = '-O3 -Werror';
         if (item.platform == TargetPlatform.android) {
-          final ndk = Platform.environment['ANDROID_NDK']!;
-          final prebuiltDir = Directory(join(ndk, 'toolchains', 'llvm', 'prebuilt'));
+          var ndkPath = Platform.environment['ANDROID_NDK'];
+          if (ndkPath == null) {
+            const ndkVersion = '27.0.12077973';
+            final androidHome = Platform.environment['ANDROID_HOME']!;
+            await checkDeps(ndks: [ndkVersion]);
+            ndkPath = join(androidHome, 'ndk', ndkVersion);
+          }
+          final prebuiltDir = Directory(join(ndkPath, 'toolchains', 'llvm', 'prebuilt'));
           final map = {
             'armeabi-v7a': 'armv7a-linux-androideabi21-clang',
             'arm64-v8a': 'aarch64-linux-android21-clang',
