@@ -80,6 +80,58 @@ class BuildItem {
   }
 }
 
+Future<void> checkDeps({
+  List<String>? commands,
+  Map<String, String>? devLibs,
+  Map<String, String>? rtLibs,
+  List<String>? files,
+}) async {
+  final missing = <String>[];
+
+  if (devLibs != null) {
+    final pkgConfigExists = (await Process.run('which', ['pkg-config'])).exitCode == 0;
+    if (!pkgConfigExists) {
+      missing.add('pkg-config');
+    } else {
+      for (final entry in devLibs.entries) {
+        final result = await Process.run('pkg-config', ['--exists', entry.value]);
+        if (result.exitCode != 0) missing.add(entry.key);
+      }
+    }
+  }
+  
+  if (rtLibs != null) {
+    for (final entry in rtLibs.entries) {
+      final result = await Process.run('sh', ['-c', 'ldconfig -p | grep $entry.value']);
+      if (result.exitCode != 0) missing.add(entry.key);
+    }
+  }
+
+  if (commands != null) {
+    for (final cmd in commands) {
+      final result = Platform.isWindows
+          ? await Process.run('where.exe', [cmd])
+          : await Process.run('which', [cmd]);
+      if (result.exitCode != 0) {
+        missing.add(cmd);
+      }
+    }
+  }
+
+  if (files != null) {
+    for (final filePath in files) {
+      if (!File(filePath).existsSync()) {
+        missing.add(basename(filePath));
+      }
+    }
+  }
+
+  if (missing.isNotEmpty) {
+    throw 'Missing required dependencies: ${missing.join(", ")}. '
+        'Please install them first. See README for details.';
+  }
+}
+
 class Build {
   static List<BuildItem> get buildItems => [
     BuildItem(platform: TargetPlatform.macos, arch: Arch.arm64),
@@ -118,26 +170,6 @@ class Build {
   static String get _servicesDir => join(current, 'services', 'helper');
 
   static String get distPath => join(current, 'dist');
-
-  static String _getCc(BuildItem buildItem) {
-    final environment = Platform.environment;
-    if (buildItem.platform == TargetPlatform.android) {
-      final ndk = environment['ANDROID_NDK'];
-      assert(ndk != null);
-      final prebuiltDir = Directory(
-        join(ndk!, 'toolchains', 'llvm', 'prebuilt'),
-      );
-      final prebuiltDirList = prebuiltDir.listSync();
-      final map = {
-        'armeabi-v7a': 'armv7a-linux-androideabi21-clang',
-        'arm64-v8a': 'aarch64-linux-android21-clang',
-        'x86': 'i686-linux-android21-clang',
-        'x86_64': 'x86_64-linux-android21-clang',
-      };
-      return join(prebuiltDirList.first.path, 'bin', map[buildItem.archName]);
-    }
-    return 'gcc';
-  }
 
   static String getTags(BuildItem buildItem) {
     final baseTags = 'with_gvisor,no_fake_tcp';
@@ -182,29 +214,7 @@ class Build {
     return sha256.convert(await stream.reduce((a, b) => a + b)).toString();
   }
 
-  static Future<void> _checkCoreDependencies(String? cgoCc) async {
-    final missing = <String>[];
-    final requiredCmds = ['go'];
-    if (cgoCc != null) requiredCmds.add(cgoCc);
-
-    for (final cmd in requiredCmds) {
-      bool exists;
-      if (Platform.isWindows) {
-        final result = await Process.run('where.exe', [cmd]);
-        exists = result.exitCode == 0;
-      } else {
-        final result = await Process.run('which', [cmd]);
-        exists = result.exitCode == 0;
-      }
-      if (!exists) missing.add(cmd);
-    }
-    if (missing.isNotEmpty) {
-      throw 'Missing required dependencies: ${missing.join(", ")}. '
-          'Please install them first. See README for details.';
-    }
-  }
-
-  // TODO: Check NDK before calling _getCc()
+  //TODO: Consider ANDROID_NDK is null
   static Future<List<String>> buildCore({
     required CoreMode mode,
     required TargetPlatform platform,
@@ -214,8 +224,7 @@ class Build {
     final isLib = mode == CoreMode.lib;
 
     final items = buildItems.where((element) {
-      return element.platform == platform &&
-          (arch == null ? true : element.arch == arch);
+      return element.platform == platform && (arch == null || element.arch == arch);
     }).toList();
 
     final List<String> corePaths = [];
@@ -247,16 +256,28 @@ class Build {
       }
       if (isLib) {
         env['CGO_ENABLED'] = '1';
-        env['CC'] = _getCc(item);
         env['CFLAGS'] = '-O3 -Werror';
+        if (item.platform == TargetPlatform.android) {
+          final ndk = Platform.environment['ANDROID_NDK']!;
+          final prebuiltDir = Directory(join(ndk, 'toolchains', 'llvm', 'prebuilt'));
+          final map = {
+            'armeabi-v7a': 'armv7a-linux-androideabi21-clang',
+            'arm64-v8a': 'aarch64-linux-android21-clang',
+            'x86': 'i686-linux-android21-clang',
+            'x86_64': 'x86_64-linux-android21-clang',
+          };
+          env['CC'] = join(prebuiltDir.listSync().first.path, 'bin', map[item.archName]);
+        } else {
+          env['CC'] = 'gcc';
+          await checkDeps(commands: ['gcc']);
+        }
       } else {
         env['CGO_ENABLED'] = '0';
       }
 
       final buildTags = getTags(item);
-      
-      await _checkCoreDependencies(env['CC']);
 
+      await checkDeps(commands: ['go']);
       await exec(
         ['go', 'mod', 'tidy'],
         name: 'go mod tidy',
@@ -399,77 +420,6 @@ class BuildCommand extends Command {
       .where((element) => element.platform == platform && element.arch != null)
       .map((e) => e.arch!)
       .toList();
-  
-  static Future<void> _checkLinuxDependencies(String targets) async {
-    final missing = <String>[];
-
-    final requiredCmds = ['clang', 'cmake', 'pkg-config', 'ninja'];
-    if (targets.contains('deb')) {
-      requiredCmds.add('dpkg-deb');
-    }
-    if (targets.contains('rpm')) {
-      requiredCmds.addAll(['rpm', 'patchelf']);
-    }
-    if (targets.contains('appimage')) {
-      requiredCmds.addAll(['appimagetool', 'locate']);
-    }
-    for (final cmd in requiredCmds) {
-      final result = await Process.run('which', [cmd]);
-      if (result.exitCode != 0) {
-        missing.add(cmd);
-      }
-    }
-
-    final requiredLibs = {
-      'gtk+-3.0': 'gtk3',
-      'ayatana-appindicator3-0.1': 'libayatana-appindicator',
-      'keybinder-3.0': 'keybinder-3.0',
-      'libcurl': 'libcurl',
-    };
-    if (targets.contains('appimage')) {
-      // requiredLibs['fuse'] = 'libfuse2';
-      // libfuse2 是 appimagetool 的运行时依赖，不适用 pkg-config
-      final result = await Process.run(
-        'sh', ['-c', 'ldconfig -p | grep -q libfuse.so.2']
-      );
-      if (result.exitCode != 0) {
-        missing.add('libfuse2');
-      }
-    }
-    for (final entry in requiredLibs.entries) {
-      final result = await Process.run('pkg-config', ['--exists', entry.key]);
-      if (result.exitCode != 0) {
-        missing.add(entry.value);
-      }
-    }
-
-    if (missing.isNotEmpty) {
-      throw 'Missing required dependencies: ${missing.join(", ")}. '
-          'Please install them first. See README for details.';
-    }
-  }
-
-  static Future<void> _checkMacosDependencies() async {
-    final result = await Process.run('which', ['appdmg']);
-    if (result.exitCode != 0) {
-      throw 'Missing appdmg. Please install it with npm.';
-    }
-  }
-
-  // TODO: Add checks for Windows ARM
-  static Future<void> _checkWindowsDependencies() async {
-    final missingCargo = (await Process.run('where.exe', ['cargo'])).exitCode != 0;
-    final missingInnoSetup = !(File(r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')).existsSync();
-
-    final throwMessage = <String>[];
-    if (missingCargo) throwMessage.add('Missing cargo, please install rustup');
-    if (missingInnoSetup) {
-      throwMessage.add(
-        'Missing ISCC.exe, Inno Setup is not installed or not in the correct path. See README for details'
-      );
-    }
-    if (throwMessage.isNotEmpty) throw throwMessage.join('\n');
-  }
 
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
     final infoPlistPath = 'macos/Runner/Info.plist';
@@ -576,7 +526,11 @@ class BuildCommand extends Command {
 
     switch (platform) {
       case TargetPlatform.windows:
-        await _checkWindowsDependencies();
+        // TODO: Add checks for Windows ARM
+        await checkDeps(
+          commands: ['cargo'],
+          files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
+        );
         final token = platform != TargetPlatform.android
             ? await Build.calcSha256(corePaths.first)
             : null;
@@ -595,7 +549,25 @@ class BuildCommand extends Command {
           throw 'Invalid targets parameter';
         }
         final defaultTarget = targetMap[arch];
-        await _checkLinuxDependencies(targets);
+        
+        final requiredCmds = ['clang', 'cmake', 'ninja'];
+        final requiredRtLibs = <Map<String, String>>[];
+        if (targets.contains('deb')) requiredCmds.add('dpkg-deb');
+        if (targets.contains('rpm')) requiredCmds.addAll(['rpm', 'patchelf']);
+        if (targets.contains('appimage')) {
+          requiredCmds.addAll(['appimagetool', 'locate']);
+          requiredRtLibs.add({'libfuse2': 'libfuse.so.2'});
+        }
+        await checkDeps(
+          commands: requiredCmds,
+          devLibs: {
+            'gtk3': 'gtk+-3.0',
+            'libayatana-appindicator': 'ayatana-appindicator3-0.1',
+            'keybinder-3.0': 'keybinder-3.0',
+            'libcurl': 'libcurl',
+          }
+        );
+
         _buildDistributor(
           platform: platform,
           targets: targets,
@@ -627,7 +599,7 @@ class BuildCommand extends Command {
         );
         return;
       case TargetPlatform.macos:
-        await _checkMacosDependencies();
+        await checkDeps(commands: ['appdmg']);
         // For compatible build, disable Impeller and use Skia renderer
         if (compatible) {
           await _setMacOSCompatibleBuild(true);
