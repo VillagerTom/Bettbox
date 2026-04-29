@@ -321,7 +321,7 @@ class Build {
       ];
       await exec(
         execLines,
-        name: 'build core',
+        name: 'build core${item.platform == TargetPlatform.android ? " (${item.archName})" : ""}',
         environment: env,
         workingDirectory: _coreDir,
       );
