@@ -445,48 +445,6 @@ class BuildCommand extends Command {
       .map((e) => e.arch!)
       .toList();
 
-  Future<void> _setMacOSCompatibleBuild(bool enable) async {
-    final infoPlistPath = 'macos/Runner/Info.plist';
-    final file = File(infoPlistPath);
-
-    if (!await file.exists()) {
-      print('Warning: Info.plist not found at $infoPlistPath');
-      return;
-    }
-
-    var content = await file.readAsString();
-
-    // Check if FLTDisableImpeller key exists
-    if (content.contains('<key>FLTDisableImpeller</key>')) {
-      // Update existing key
-      if (enable) {
-        content = content.replaceAll(
-          RegExp(r'<key>FLTDisableImpeller</key>\s*<(?:true|false)/>'),
-          '<key>FLTDisableImpeller</key>\n\t<true/>',
-        );
-      } else {
-        content = content.replaceAll(
-          RegExp(r'<key>FLTDisableImpeller</key>\s*<(?:true|false)/>'),
-          '<key>FLTDisableImpeller</key>\n\t<false/>',
-        );
-      }
-    } else {
-      // Add new key before </dict>
-      final impellerEntry = enable
-          ? '\t<key>FLTDisableImpeller</key>\n\t<true/>\n'
-          : '\t<key>FLTDisableImpeller</key>\n\t<false/>\n';
-      content = content.replaceFirst(
-        '</dict>\n</plist>',
-        '$impellerEntry</dict>\n</plist>',
-      );
-    }
-
-    await file.writeAsString(content);
-    print(
-      'macOS ${enable ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $enable',
-    );
-  }
-
   Future<void> _buildDistributor({
     required TargetPlatform platform,
     required String targets,
@@ -625,11 +583,30 @@ class BuildCommand extends Command {
         return;
       case TargetPlatform.macos:
         await checkDeps(commands: ['appdmg']);
+
         // For compatible build, disable Impeller and use Skia renderer
-        if (compatible) {
-          await _setMacOSCompatibleBuild(true);
+        final infoPlist = File('macos/Runner/Info.plist');
+        if (await infoPlist.exists()) {
+          var content = await infoPlist.readAsString();
+
+          // Check if FLTDisableImpeller key exists
+          if (content.contains('<key>FLTDisableImpeller</key>')) {
+            content = content.replaceAll(
+              RegExp(r'<key>FLTDisableImpeller</key>\s*<(?:true|false)/>'),
+              '<key>FLTDisableImpeller</key>\n\t<$compatible/>',
+            );
+          } else {
+            // Add new key before </dict>
+            final impellerEntry = '\t<key>FLTDisableImpeller</key>\n\t<$compatible/>\n';
+            content = content.replaceFirst(
+              '</dict>\n</plist>',
+              '$impellerEntry</dict>\n</plist>',
+            );
+          }
+          await infoPlist.writeAsString(content);
+          print('macOS ${compatible ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $compatible');
         } else {
-          await _setMacOSCompatibleBuild(false);
+          print('Warning: ${infoPlist.path} not found!');
         }
         _buildDistributor(
           platform: platform,
