@@ -290,7 +290,7 @@ class Build {
     final items = buildItems.where((element) {
       return element.platform == platform && (arch == null || element.arch == arch);
     }).toList();
-
+    final isMultiArch = items.length > 1;
     final List<String> corePaths = [];
     final List<String> macOSCorePaths = [];
     for (final item in items) {
@@ -373,7 +373,7 @@ class Build {
       ];
       await exec(
         execLines,
-        name: 'build core',
+        name: 'build core ${isMultiArch ? "(${item.archName ?? item.arch.name})" : ""}',
         environment: env,
         workingDirectory: _coreDir,
       );
