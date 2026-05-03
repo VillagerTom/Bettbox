@@ -67,12 +67,39 @@ enum CoreMode { core, lib }
 
 enum Arch { amd64, arm64, arm }
 
+extension ArchExt on Arch {
+  bool get same {
+    String hostArch;
+    if (Platform.isWindows) {
+      hostArch = Platform.environment['PROCESSOR_ARCHITECTURE']!;
+    } else {
+      var info = Process.runSync('uname', ['-m']);
+      hostArch = info.stdout.toString().trim();
+    }
+    switch (hostArch) {
+      case 'x86_64' || 'AMD64':
+        hostArch = 'amd64';
+        break;
+      case 'i386' || 'i486' || 'i586' || 'i686' || 'x86':
+        hostArch = 'amd32';
+        break;
+      case 'aarch64' || 'arm64' || 'arm64e' || 'ARM64':
+        hostArch = 'arm64';
+        break;
+      case 'armv5l' || 'armv6l' || 'armv7l' || 'ARM':
+        hostArch = 'arm';
+        break;
+    }
+    return name == hostArch ? true : false;
+  }
+}
+
 class BuildItem {
   TargetPlatform platform;
-  Arch? arch;
+  Arch arch;
   String? archName;
 
-  BuildItem({required this.platform, this.arch, this.archName});
+  BuildItem({required this.platform, required this.arch, this.archName});
 
   @override
   String toString() {
@@ -262,9 +289,7 @@ class Build {
 
       final Map<String, String> env = {};
       env['GOOS'] = item.platform.os;
-      if (item.arch != null) {
-        env['GOARCH'] = item.arch!.name;
-      }
+      env['GOARCH'] = item.arch.name;
       if (item.arch == Arch.amd64 &&
           (item.platform == TargetPlatform.windows ||
               item.platform == TargetPlatform.linux ||
@@ -401,6 +426,7 @@ class Build {
 class BuildCommand extends Command {
   TargetPlatform platform;
 
+  //TODO: Delete arg option 'targets' for android
   BuildCommand({required this.platform}) {
     if (platform == TargetPlatform.android ||
         platform == TargetPlatform.linux) {
@@ -440,8 +466,8 @@ class BuildCommand extends Command {
   String get name => platform.name;
 
   List<Arch> get arches => Build.buildItems
-      .where((element) => element.platform == platform && element.arch != null)
-      .map((e) => e.arch!)
+      .where((element) => element.platform == platform)
+      .map((e) => e.arch)
       .toList();
 
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
@@ -506,29 +532,19 @@ class BuildCommand extends Command {
     );
   }
 
-  Future<String?> get systemArch async {
-    if (Platform.isWindows) {
-      return Platform.environment['PROCESSOR_ARCHITECTURE'];
-    } else if (Platform.isLinux || Platform.isMacOS) {
-      final result = await Process.run('uname', ['-m']);
-      return result.stdout.toString().trim();
-    }
-    return null;
-  }
-
   @override
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
     final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
-    final archName = argResults?['arch'];
-    final env = argResults?['env'] ?? 'pre';
-    final currentArches = arches
-        .where((element) => element.name == archName)
-        .toList();
-    final arch = currentArches.isEmpty ? null : currentArches.first;
+    final String? archName = argResults?['arch'];
+    final String env = argResults?['env'] ?? 'pre';
+    Arch? arch = arches.where((element) => element.name == archName).firstOrNull;
 
-    if (arch == null && platform != TargetPlatform.android) {
-      throw 'Invalid arch parameter';
+    if (platform != TargetPlatform.android) {
+      arch ??= arches.where((element) => element.same).first;
+      if (!arch.same && platform == TargetPlatform.linux) {
+        throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+      }
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
@@ -545,7 +561,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = compatible ? '$archName-compatible' : (archName ?? '');
+    final String desc = '${archName ?? arch?.name}${compatible ? "-compatible" : ""}';
 
     switch (platform) {
       case TargetPlatform.windows:
