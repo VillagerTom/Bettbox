@@ -384,7 +384,7 @@ class Build {
           ? '$libName${TargetPlatform.macos.dynamicLibExtensionName}'
           : '$coreName${TargetPlatform.macos.executableExtensionName}';
       await exec(
-        ['lipo', '-create', '-output', fileName, macOSCorePaths.join(' ')], 
+        ['lipo', '-create', '-output', fileName, ...macOSCorePaths], 
         workingDirectory: outFileDir
       );
       corePaths.add(join(outFileDir, fileName));
