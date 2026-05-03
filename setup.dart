@@ -68,28 +68,47 @@ enum CoreMode { core, lib }
 enum Arch { amd64, arm64, arm }
 
 extension ArchExt on Arch {
+  Map<String, String> get archMap {
+    switch (Platform.operatingSystem) {
+      case 'windows':
+        return {
+          'AMD64': 'amd64',
+          'x86': 'amd32',
+          'ARM64': 'arm64',
+          'ARM': 'arm'
+        };
+      case 'linux' || 'android':
+        return {
+          'x86_64': 'amd64',
+          'i386': 'amd32',
+          'i486': 'amd32',
+          'i586': 'amd32',
+          'i686': 'amd32',
+          'aarch64': 'arm64',
+          'armv5l': 'arm',
+          'armv6l': 'arm',
+          'armv7l': 'arm'
+        };
+      case 'macos':
+        return {
+          'x86_64': 'amd64',
+          'arm64': 'arm64',
+          'arm64e': 'arm64'
+        };
+      default:
+        throw 'Unsupported platform!';
+    }
+  }
+
   bool get same {
-    String hostArch;
+    final String hostArchName;
     if (Platform.isWindows) {
-      hostArch = Platform.environment['PROCESSOR_ARCHITECTURE']!;
+      hostArchName = Platform.environment['PROCESSOR_ARCHITECTURE']!;
     } else {
       var info = Process.runSync('uname', ['-m']);
-      hostArch = info.stdout.toString().trim();
+      hostArchName = info.stdout.toString().trim();
     }
-    switch (hostArch) {
-      case 'x86_64' || 'AMD64':
-        hostArch = 'amd64';
-        break;
-      case 'i386' || 'i486' || 'i586' || 'i686' || 'x86':
-        hostArch = 'amd32';
-        break;
-      case 'aarch64' || 'arm64' || 'arm64e' || 'ARM64':
-        hostArch = 'arm64';
-        break;
-      case 'armv5l' || 'armv6l' || 'armv7l' || 'ARM':
-        hostArch = 'arm';
-        break;
-    }
+    final hostArch = archMap[hostArchName] ?? hostArchName;
     return name == hostArch ? true : false;
   }
 }
@@ -273,9 +292,13 @@ class Build {
     }).toList();
 
     final List<String> corePaths = [];
-
+    final List<String> macOSCorePaths = [];
     for (final item in items) {
-      final outFileDir = join(outDir, item.platform.name, item.archName);
+      final outFileDir = join(
+        outDir,
+        item.platform.name, 
+        item.platform == TargetPlatform.macos ? item.arch.name : item.archName
+      );
 
       final file = File(outFileDir);
       if (file.existsSync()) {
@@ -286,7 +309,11 @@ class Build {
           ? '$libName${item.platform.dynamicLibExtensionName}'
           : '$coreName${item.platform.executableExtensionName}';
       final outPath = join(outFileDir, fileName);
-      corePaths.add(outPath);
+      if (item.platform == TargetPlatform.macos) {
+        macOSCorePaths.add(outPath);
+      } else {
+        corePaths.add(outPath);
+      }
 
       final Map<String, String> env = {};
       env['GOOS'] = item.platform.os;
@@ -351,7 +378,17 @@ class Build {
         workingDirectory: _coreDir,
       );
     }
-
+    if (macOSCorePaths.isNotEmpty) {
+      final outFileDir = join(outDir, TargetPlatform.macos.name);
+      final fileName = isLib
+          ? '$libName${TargetPlatform.macos.dynamicLibExtensionName}'
+          : '$coreName${TargetPlatform.macos.executableExtensionName}';
+      await exec(
+        ['lipo', '-create', '-output', fileName, macOSCorePaths.join(' ')], 
+        workingDirectory: outFileDir
+      );
+      corePaths.add(join(outFileDir, fileName));
+    }
     return corePaths;
   }
 
@@ -476,6 +513,7 @@ class BuildCommand extends Command {
     required String targets,
     String args = '',
     required String env,
+    Map<String, String>? buildEnv,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
     final sentryArg = sentryDsn.isNotEmpty
@@ -485,6 +523,7 @@ class BuildCommand extends Command {
     await Build.getDistributor();
     await Build.exec(
       name: description,
+      environment: buildEnv,
       Build.getExecutable(
         'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$env',
       ),
@@ -495,11 +534,11 @@ class BuildCommand extends Command {
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
     final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
-    final String? archName = argResults?['arch'];
+    final String? archParam = argResults?['arch'];
     final String env = argResults?['env'] ?? 'pre';
-    Arch? arch = arches.where((element) => element.name == archName).firstOrNull;
+    Arch? arch = arches.where((element) => element.name == archParam).firstOrNull;
 
-    if (platform != TargetPlatform.android) {
+    if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
       arch ??= arches.where((element) => element.same).first;
       if (!arch.same && platform == TargetPlatform.linux) {
         throw 'Corss-build to $name ${arch.name} target is not currently supported!';
@@ -520,7 +559,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = '$archName${compatible ? "-compatible" : ""}';
+    final String desc = '$archParam${compatible ? "-compatible" : ""}';
 
     switch (platform) {
       case TargetPlatform.windows:
@@ -585,7 +624,7 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
@@ -623,11 +662,17 @@ class BuildCommand extends Command {
         } else {
           print('Warning: ${infoPlist.path} not found!');
         }
+        
+        final archName = archParam == 'universal'
+          ? null
+          : arch?.archMap.keys.firstWhere((k) => arch?.archMap[k] == arch?.name);
+        final buildEnv = archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName};
         _buildDistributor(
           platform: platform,
           targets: 'dmg',
           args: ' --description $desc',
           env: env,
+          buildEnv: buildEnv,
         );
         return;
     }
