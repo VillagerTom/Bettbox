@@ -383,12 +383,18 @@ class Build {
       final fileName = isLib
           ? '$libName${TargetPlatform.macos.dynamicLibExtensionName}'
           : '$coreName${TargetPlatform.macos.executableExtensionName}';
+      final outPath = join(outFileDir, fileName);
+
+      await exec(['ls', ...macOSCorePaths]);
       await exec(
-        ['lipo', '-create', '-output', fileName, ...macOSCorePaths], 
-        workingDirectory: outFileDir
+        macOSCorePaths.length > 1
+        ? ['lipo', '-create', '-output', outPath, ...macOSCorePaths]
+        : ['cp', macOSCorePaths.first, outPath]
       );
-      corePaths.add(join(outFileDir, fileName));
+      corePaths.add(outPath);
     }
+    print(corePaths);
+    throw '';
     return corePaths;
   }
 
