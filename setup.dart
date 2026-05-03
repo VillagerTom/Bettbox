@@ -385,7 +385,6 @@ class Build {
           : '$coreName${TargetPlatform.macos.executableExtensionName}';
       final outPath = join(outFileDir, fileName);
 
-      await exec(['ls', ...macOSCorePaths]);
       await exec(
         macOSCorePaths.length > 1
         ? ['lipo', '-create', '-output', outPath, ...macOSCorePaths]
@@ -393,8 +392,6 @@ class Build {
       );
       corePaths.add(outPath);
     }
-    print(corePaths);
-    throw '';
     return corePaths;
   }
 
