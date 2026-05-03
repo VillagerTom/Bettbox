@@ -57,12 +57,58 @@ enum CoreMode { core, lib }
 
 enum Arch { amd64, arm64, arm }
 
+extension ArchExt on Arch {
+  Map<String, String> get archMap {
+    switch (Platform.operatingSystem) {
+      case 'windows':
+        return {
+          'AMD64': 'amd64',
+          'x86': 'amd32',
+          'ARM64': 'arm64',
+          'ARM': 'arm',
+        };
+      case 'linux' || 'android':
+        return {
+          'x86_64': 'amd64',
+          'i386': 'amd32',
+          'i486': 'amd32',
+          'i586': 'amd32',
+          'i686': 'amd32',
+          'aarch64': 'arm64',
+          'armv5l': 'arm',
+          'armv6l': 'arm',
+          'armv7l': 'arm',
+        };
+      case 'macos':
+        return {
+          'x86_64': 'amd64',
+          'arm64': 'arm64',
+          'arm64e': 'arm64'
+        };
+      default:
+        throw 'Unsupported platform!';
+    }
+  }
+
+  bool get same {
+    final String hostArchName;
+    if (Platform.isWindows) {
+      hostArchName = Platform.environment['PROCESSOR_ARCHITECTURE']!;
+    } else {
+      var info = Process.runSync('uname', ['-m']);
+      hostArchName = info.stdout.toString().trim();
+    }
+    final hostArch = archMap[hostArchName] ?? hostArchName;
+    return name == hostArch ? true : false;
+  }
+}
+
 class BuildItem {
   TargetPlatform platform;
-  Arch? arch;
+  Arch arch;
   String? archName;
 
-  BuildItem({required this.platform, this.arch, this.archName});
+  BuildItem({required this.platform, required this.arch, this.archName});
 
   @override
   String toString() {
@@ -258,9 +304,7 @@ class Build {
 
       final Map<String, String> env = {};
       env['GOOS'] = item.platform.os;
-      if (item.arch != null) {
-        env['GOARCH'] = item.arch!.name;
-      }
+      env['GOARCH'] = item.arch.name;
       if (item.arch == Arch.amd64 &&
           (item.platform == TargetPlatform.windows ||
               item.platform == TargetPlatform.linux ||
@@ -517,15 +561,13 @@ class AssetDownloadItem {
 class BuildCommand extends Command {
   TargetPlatform platform;
 
+  //TODO: Delete arg option 'targets' for android
   BuildCommand({required this.platform}) {
     if (platform == TargetPlatform.android ||
         platform == TargetPlatform.linux) {
       argParser.addOption(
         'arch',
-        valueHelp: [
-          if (platform != TargetPlatform.android) 'auto',
-          ...arches.map((e) => e.name),
-        ].join(','),
+        valueHelp: arches.map((e) => e.name).join(','),
         help: 'The $name build desc',
       );
       argParser.addOption(
@@ -536,7 +578,7 @@ class BuildCommand extends Command {
     } else {
       argParser.addOption(
         'arch',
-        valueHelp: ['auto', ...arches.map((e) => e.name)].join(','),
+        valueHelp: arches.map((e) => e.name).join(','),
         help: 'The $name build archName',
       );
     }
@@ -578,8 +620,8 @@ class BuildCommand extends Command {
   String get name => platform.name;
 
   List<Arch> get arches => Build.buildItems
-      .where((element) => element.platform == platform && element.arch != null)
-      .map((e) => e.arch!)
+      .where((element) => element.platform == platform)
+      .map((e) => e.arch)
       .toList();
 
   Future<void> _setLinuxCoreSetuid() async {
@@ -660,25 +702,6 @@ class BuildCommand extends Command {
       ),
       environment: environment,
     );
-  }
-
-  Future<String?> get systemArch async {
-    if (Platform.isWindows) {
-      return Platform.environment['PROCESSOR_ARCHITECTURE'];
-    } else if (Platform.isLinux || Platform.isMacOS) {
-      final result = await Process.run('uname', ['-m']);
-      return result.stdout.toString().trim();
-    }
-    return null;
-  }
-
-  String? _mapHostArch(String? hostArch) {
-    if (hostArch == null) return null;
-    final lower = hostArch.toLowerCase();
-    if (lower == 'amd64' || lower == 'x86_64' || lower == 'x64') return 'amd64';
-    if (lower == 'arm64' || lower == 'aarch64') return 'arm64';
-    if (lower.startsWith('arm')) return 'arm';
-    return null;
   }
 
   List<String> _expectedOutputs(Arch? arch) {
@@ -776,31 +799,17 @@ class BuildCommand extends Command {
     String? coreHash,
   }) async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
-    final String actualOut = out ?? (platform.buildable ? 'app' : 'core');
+final String actualOut = out ?? (platform.buildable ? 'app' : 'core');
     Build.isDev = dev;
 
     await Build.ensureAssets();
 
-    if (archName == 'auto') {
-      if (platform == TargetPlatform.android) {
-        throw '--arch auto is not supported for android; choose the device ABI explicitly';
-      }
-      if (!platform.same) {
-        throw '--arch auto can only be used for the current host platform';
-      }
-      archName = _mapHostArch(await systemArch);
-      if (archName == null) {
-        throw 'Unable to detect host architecture';
-      }
-    }
-
-    final currentArches = arches
+    Arch? arch = arches
         .where((element) => element.name == archName)
-        .toList();
-    final arch = currentArches.isEmpty ? null : currentArches.first;
+        .firstOrNull;
 
-    if (arch == null && platform != TargetPlatform.android) {
-      throw 'Invalid arch parameter';
+    if (platform != TargetPlatform.android) {
+      arch ??= arches.where((element) => element.same).first;
     }
 
     if (ensure && actualOut != 'app') {
@@ -845,7 +854,9 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = compatible ? '$archName-compatible' : (archName ?? '');
+    final String desc = platform == TargetPlatform.android
+        ? ''
+        : '${archName ?? arch!.name}${compatible ? "-compatible" : ""}';
 
     String appAssetSuffix = '';
     switch (platform) {
@@ -872,7 +883,7 @@ class BuildCommand extends Command {
 
     switch (platform) {
       case TargetPlatform.windows:
-        if (arch!.name != await systemArch) {
+        if (!arch!.same) {
           throw 'Corss-build to $name ${arch.name} target is not currently supported!';
         }
 
@@ -880,7 +891,7 @@ class BuildCommand extends Command {
             ? await Build.calcSha256(corePaths.first)
             : null;
         await checkDeps(commands: ['cargo']);
-        Build.buildHelper(platform, token!);
+        await Build.buildHelper(platform, token!);
         await checkDeps(
           commands: ['rustup'],
           files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
@@ -895,7 +906,7 @@ class BuildCommand extends Command {
         );
         return;
       case TargetPlatform.linux:
-        if (arch!.name != await systemArch) {
+        if (!arch!.same) {
           throw 'Corss-build to $name ${arch.name} target is not currently supported!';
         }
 
@@ -964,7 +975,7 @@ class BuildCommand extends Command {
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
-        _buildDistributor(
+        await _buildDistributor(
           platform: platform,
           targets: 'apk',
           args: buildArgs,
@@ -985,7 +996,7 @@ class BuildCommand extends Command {
           Build.getExecutable('pod install --repo-update'),
           workingDirectory: 'macos',
         );
-        _buildDistributor(
+        await _buildDistributor(
           platform: platform,
           targets: 'dmg',
           args: ' --description $desc',
@@ -1051,13 +1062,10 @@ class AutoBuildCommand extends Command {
 
     if (rawDeviceId == 'windows') {
       platform = TargetPlatform.windows;
-      archName ??= 'auto';
     } else if (rawDeviceId == 'macos') {
       platform = TargetPlatform.macos;
-      archName ??= 'auto';
     } else if (rawDeviceId == 'linux') {
       platform = TargetPlatform.linux;
-      archName ??= 'auto';
     } else if (rawDeviceId == 'chrome' ||
         rawDeviceId == 'edge' ||
         rawDeviceId == 'web-server') {
@@ -1073,7 +1081,6 @@ class AutoBuildCommand extends Command {
       } else {
         throw 'No device specified and unable to determine host platform.';
       }
-      archName ??= 'auto';
     } else {
       final res = await Process.run(
         'flutter',
@@ -1112,13 +1119,10 @@ class AutoBuildCommand extends Command {
       } else if (targetPlatform.startsWith('darwin') ||
           targetPlatform.startsWith('macos')) {
         platform = TargetPlatform.macos;
-        archName ??= 'auto';
       } else if (targetPlatform.startsWith('windows')) {
         platform = TargetPlatform.windows;
-        archName ??= 'auto';
       } else if (targetPlatform.startsWith('linux')) {
         platform = TargetPlatform.linux;
-        archName ??= 'auto';
       } else if (targetPlatform.startsWith('web')) {
         print(
           'Web target platform "$targetPlatform" does not require core binary. Skipping.',
