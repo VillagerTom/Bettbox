@@ -387,8 +387,8 @@ class Build {
 
       await exec(
         macOSCorePaths.length > 1
-        ? ['lipo', '-create', '-output', outPath, ...macOSCorePaths]
-        : ['cp', macOSCorePaths.first, outPath]
+            ? ['lipo', '-create', '-output', outPath, ...macOSCorePaths]
+            : ['cp', macOSCorePaths.first, outPath],
       );
       corePaths.add(outPath);
     }
@@ -539,15 +539,21 @@ class BuildCommand extends Command {
     final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
     final String? archParam = argResults?['arch'];
     final String env = argResults?['env'] ?? 'pre';
-    Arch? arch = arches.where((element) => element.name == archParam).firstOrNull;
 
-    if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
-      arch ??= arches.where((element) => element.same).first;
-      if (!arch.same && platform == TargetPlatform.linux) {
-        throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+    Arch? arch;
+    if (archParam == null) {
+      if (platform != TargetPlatform.android) {
+        arch = arches.firstWhere((element) => element.same);
       }
+    } else if (archParam == 'universal') {
+      if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
+        throw 'Invalid arch parameter!';
+      }
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
-
+    
     final bool compatible = argResults?['compatible'] ?? false;
 
     final corePaths = await Build.buildCore(
@@ -564,6 +570,10 @@ class BuildCommand extends Command {
 
     final String desc = '$archParam${compatible ? "-compatible" : ""}';
 
+    String? buildTargets;
+    String buildArgs = '';
+    Map<String, String>? buildEnv;
+
     switch (platform) {
       case TargetPlatform.windows:
         // TODO: Add checks for Windows ARM
@@ -575,21 +585,21 @@ class BuildCommand extends Command {
             ? await Build.calcSha256(corePaths.first)
             : null;
         Build.buildHelper(platform, token!);
-        _buildDistributor(
-          platform: platform,
-          targets: 'exe',
-          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
-          env: env,
-        );
-        return;
+        buildTargets = 'exe';
+        buildArgs = ' --description $desc --build-dart-define=CORE_SHA256=$token';
+        break;
+
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
         final targets = argResults?['targets'];
+        if (!arch!.same) { // 逆天 Dart Analyzer 不认得 switch 分支里的条件限制
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
         if (targets == null || targets.trim().isEmpty) {
           throw 'Invalid targets parameter';
         }
         final defaultTarget = targetMap[arch];
-        
+
         final requiredCmds = ['clang', 'cmake', 'ninja'];
         final requiredRtLibs = <Map<String, String>>[];
         if (targets.contains('deb')) requiredCmds.add('dpkg-deb');
@@ -605,16 +615,14 @@ class BuildCommand extends Command {
             'libayatana-appindicator': 'ayatana-appindicator3-0.1',
             'keybinder-3.0': 'keybinder-3.0',
             'libcurl': 'libcurl',
-          }
+          },
         );
 
-        _buildDistributor(
-          platform: platform,
-          targets: targets,
-          args: ' --description $desc --build-target-platform $defaultTarget',
-          env: env,
-        );
-        return;
+        buildTargets = targets;
+        buildArgs =
+            ' --description $desc --build-target-platform $defaultTarget';
+        break;
+
       case TargetPlatform.android:
         final targetMap = {
           Arch.arm: 'android-arm',
@@ -627,17 +635,12 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archParam == 'universal'
+        buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
+        buildTargets = 'apk';
+        break;
 
-        _buildDistributor(
-          platform: platform,
-          targets: 'apk',
-          args: buildArgs,
-          env: env,
-        );
-        return;
       case TargetPlatform.macos:
         await checkDeps(commands: ['appdmg']);
 
@@ -661,24 +664,32 @@ class BuildCommand extends Command {
             );
           }
           await infoPlist.writeAsString(content);
-          print('macOS ${compatible ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $compatible');
+          print(
+            'macOS ${compatible ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $compatible',
+          );
         } else {
           print('Warning: ${infoPlist.path} not found!');
         }
-        
-        // FIXME: still builds two core when arch param is null
+
         final archName = archParam == 'universal'
-          ? null
-          : arch?.archMap.keys.firstWhere((k) => arch?.archMap[k] == arch?.name);
-        final buildEnv = archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName};
-        _buildDistributor(
-          platform: platform,
-          targets: 'dmg',
-          args: ' --description $desc',
-          env: env,
-          buildEnv: buildEnv,
-        );
-        return;
+            ? null
+            : arch?.archMap.keys.firstWhere(
+                (k) => arch?.archMap[k] == arch?.name,
+              );
+        buildEnv = archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName};
+        buildTargets = 'dmg';
+        buildArgs = ' --description $desc';
+        break;
+    }
+
+    if (buildTargets != null) {
+      _buildDistributor(
+        platform: platform,
+        targets: buildTargets,
+        args: buildArgs,
+        env: env,
+        buildEnv: buildEnv,
+      );
     }
   }
 }
