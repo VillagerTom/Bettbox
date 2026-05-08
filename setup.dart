@@ -505,7 +505,6 @@ class BuildCommand extends Command {
       .map((e) => e.arch)
       .toList();
 
-  // FIXME: The output package name contains "null" if no "arch" parameter
   Future<void> _buildDistributor({
     required TargetPlatform platform,
     required String targets,
@@ -563,7 +562,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = '$archParam${compatible ? "-compatible" : ""}';
+    final String desc = '${archParam ?? arch?.name}${compatible ? "-compatible" : ""}';
 
     String? buildTargets;
     String buildArgs = '';
