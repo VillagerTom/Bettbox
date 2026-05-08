@@ -17,20 +17,10 @@ extension PlatformExt on TargetPlatform {
     return name;
   }
 
-  bool get same {
-    if (this == TargetPlatform.android) {
-      return true;
-    }
-    if (Platform.isWindows && this == TargetPlatform.windows) {
-      return true;
-    }
-    if (Platform.isLinux && this == TargetPlatform.linux) {
-      return true;
-    }
-    if (Platform.isMacOS && this == TargetPlatform.macos) {
-      return true;
-    }
-    return false;
+  bool get same => name == Platform.operatingSystem;
+
+  bool get buildable {
+    return same || this == TargetPlatform.android;
   }
 
   String get dynamicLibExtensionName {
@@ -466,36 +456,42 @@ class Build {
 class BuildCommand extends Command {
   TargetPlatform platform;
 
-  //TODO: Delete arg option 'targets' for android
   BuildCommand({required this.platform}) {
-    if (platform == TargetPlatform.android ||
-        platform == TargetPlatform.linux) {
-      argParser.addOption(
-        'arch',
-        valueHelp: arches.map((e) => e.name).join(','),
-        help: 'The $name build desc',
-      );
-      argParser.addOption(
+    argParser.addOption(
+      'arch',
+      abbr: 'a',
+      allowed: platform == TargetPlatform.android || platform == TargetPlatform.macos
+        ? [...arches.map((e) => e.name), 'universal']
+        : arches.map((e) => e.name),
+      help: 'The architecture of $name build; omit this to select '
+        '${platform != TargetPlatform.android ? "the host" : "every"} architecture',
+    );
+    if (platform == TargetPlatform.linux) {
+      argParser.addMultiOption(
         'targets',
-        valueHelp: 'deb,zip,appimage,rpm',
-        help: 'The linux package formats (comma separated)',
+        abbr: 't',
+        allowed: ['deb', 'rpm', 'appimage', 'zip'],
+        help: 'Linux package formats (multiple selections, seperated by ",")',
       );
-    } else {
-      argParser.addOption('arch', help: 'The $name build archName');
     }
     argParser.addOption(
       'out',
-      valueHelp: [if (platform.same) 'app', 'core'].join(','),
-      help: 'The $name build arch',
+      abbr: 'o',
+      allowed: [if (platform.buildable) 'app', 'core'],
+      help: 'Build the full app or only the core',
+      defaultsTo: platform.buildable ? 'app' : 'core',
     );
     argParser.addOption(
       'env',
-      valueHelp: ['pre', 'stable'].join(','),
-      help: 'The $name build env',
+      abbr: 'e',
+      allowed: ['pre', 'stable'],
+      help: 'The value of dart-define APP_ENV, used to identify the release channel',
+      defaultsTo: 'pre',
     );
     argParser.addFlag(
       'compatible',
-      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+      abbr: 'C',
+      help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
   }
 
@@ -556,7 +552,7 @@ class BuildCommand extends Command {
     required TargetPlatform platform,
     required String targets,
     String args = '',
-    required String env,
+    required String appEnv,
     Map<String, String>? buildEnv,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
@@ -569,7 +565,7 @@ class BuildCommand extends Command {
       name: description,
       environment: buildEnv,
       Build.getExecutable(
-        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$env',
+        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$appEnv',
       ),
     );
   }
@@ -577,9 +573,9 @@ class BuildCommand extends Command {
   @override
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
-    final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
+    final String out = argResults?['out'] ?? (platform.buildable ? 'app' : 'core');
     final String? archParam = argResults?['arch'];
-    final String env = argResults?['env'] ?? 'pre';
+    final String appEnv = argResults?['env'] ?? 'pre';
 
     Arch? arch;
     if (archParam == null) {
@@ -605,7 +601,7 @@ class BuildCommand extends Command {
     );
 
     if (out != 'app') {
-      if (!platform.same) print('Platform incompatible, core built only!');
+      if (!platform.buildable) print('Platform incompatible, core built only!');
       return;
     }
 
@@ -633,11 +629,11 @@ class BuildCommand extends Command {
 
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final targets = argResults?['targets'];
+        final List<String> targets = argResults?['targets'];
         if (!arch!.same) {
           throw 'Corss-build to $name ${arch.name} target is not currently supported!';
         }
-        if (targets == null || targets.trim().isEmpty) {
+        if (targets.isEmpty) {
           throw 'Invalid targets parameter';
         }
         final defaultTarget = targetMap[arch];
@@ -661,7 +657,7 @@ class BuildCommand extends Command {
           rtLibs: requiredRtLibs,
         );
 
-        buildTargets = targets;
+        buildTargets = targets.join(',');
         buildArgs =
             ' --description $desc --build-target-platform $defaultTarget';
         break;
@@ -708,7 +704,7 @@ class BuildCommand extends Command {
       platform: platform,
       targets: buildTargets,
       args: buildArgs,
-      env: env,
+      appEnv: appEnv,
       buildEnv: buildEnv,
     );
   }
