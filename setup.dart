@@ -441,40 +441,42 @@ class Build {
 class BuildCommand extends Command {
   TargetPlatform platform;
 
-  //TODO: Delete arg option 'targets' for android
   BuildCommand({required this.platform}) {
-    if (platform == TargetPlatform.android ||
-        platform == TargetPlatform.linux) {
-      argParser.addOption(
-        'arch',
-        valueHelp: arches.map((e) => e.name).join(','),
-        help: 'The $name build desc',
-      );
-      argParser.addOption(
+    argParser.addOption(
+      'arch',
+      abbr: 'a',
+      allowed: platform == TargetPlatform.android || platform == TargetPlatform.macos
+        ? [...arches.map((e) => e.name), 'universal']
+        : arches.map((e) => e.name),
+      help: 'The architecture of $name build; omit this to select '
+        '${platform != TargetPlatform.android ? "the host" : "every"} architecture',
+    );
+    if (platform == TargetPlatform.linux) {
+      argParser.addMultiOption(
         'targets',
-        valueHelp: 'deb,zip,appimage,rpm',
-        help: 'The linux package formats (comma separated)',
-      );
-    } else {
-      argParser.addOption(
-        'arch',
-        valueHelp: arches.map((e) => e.name).join(','),
-        help: 'The $name build archName',
+        abbr: 't',
+        allowed: ['deb', 'rpm', 'appimage', 'zip'],
+        help: 'Linux package formats (multiple selections, seperated by ",")',
       );
     }
     argParser.addOption(
       'out',
-      valueHelp: [if (platform.buildable) 'app', 'core'].join(','),
-      help: 'The $name build arch',
+      abbr: 'o',
+      allowed: [if (platform.buildable) 'app', 'core'],
+      help: 'Build the full app or only the core',
+      defaultsTo: platform.buildable ? 'app' : 'core',
     );
     argParser.addOption(
       'env',
-      valueHelp: ['pre', 'stable'].join(','),
-      help: 'The $name build env',
+      abbr: 'e',
+      allowed: ['pre', 'stable'],
+      help: 'The value of dart-define APP_ENV, used to identify the release channel',
+      defaultsTo: 'pre',
     );
     argParser.addFlag(
       'compatible',
-      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+      abbr: 'C',
+      help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
     argParser.addFlag('dev', help: 'Build debug/dev variant');
     argParser.addFlag(
@@ -532,7 +534,7 @@ class BuildCommand extends Command {
     required TargetPlatform platform,
     required String targets,
     String args = '',
-    required String env,
+    required String appEnv,
     required String suffix,
     bool compatible = false,
   }) async {
@@ -555,7 +557,7 @@ class BuildCommand extends Command {
     await Build.exec(
       name: description,
       Build.getExecutable(
-        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg --build-dart-define=APP_ENV=$env$appDevArg',
+        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg --build-dart-define=APP_ENV=$appEnv$appDevArg',
       ),
       environment: environment,
     );
@@ -636,9 +638,9 @@ class BuildCommand extends Command {
   @override
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
-    final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
+    final String out = argResults?['out'] ?? (platform.buildable ? 'app' : 'core');
     final String? archParam = argResults?['arch'];
-    final String env = argResults?['env'] ?? 'pre';
+    final String appEnv = argResults?['env'] ?? 'pre';
     Build.isDev = argResults?['dev'] ?? false;
 
     Arch? arch;
@@ -727,7 +729,7 @@ class BuildCommand extends Command {
           platform: platform,
           targets: 'exe',
           args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
         );
@@ -782,7 +784,7 @@ class BuildCommand extends Command {
             platform: platform,
             targets: t,
             args: ' --description $desc --build-target-platform $defaultTarget',
-            env: env,
+            appEnv: appEnv,
             suffix: currentSuffix,
             compatible: compatible,
           );
@@ -808,7 +810,7 @@ class BuildCommand extends Command {
           platform: platform,
           targets: 'apk',
           args: buildArgs,
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
         );
@@ -820,7 +822,7 @@ class BuildCommand extends Command {
           platform: platform,
           targets: 'dmg',
           args: ' --description $desc',
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
         );
