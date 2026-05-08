@@ -596,36 +596,36 @@ class AssetDownloadItem {
 class BuildCommand extends Command {
   TargetPlatform platform;
 
-  //TODO: Delete arg option 'targets' for android
   BuildCommand({required this.platform}) {
-    if (platform == TargetPlatform.android ||
-        platform == TargetPlatform.linux) {
-      argParser.addOption(
-        'arch',
-        valueHelp: arches.map((e) => e.name).join(','),
-        help: 'The $name build desc',
-      );
-      argParser.addOption(
+    argParser.addOption(
+      'arch',
+      abbr: 'a',
+      allowed: platform == TargetPlatform.android || platform == TargetPlatform.macos
+          ? [...arches.map((e) => e.name), 'universal']
+          : arches.map((e) => e.name),
+      help: 'The architecture of $name build; omit this to select '
+        '${platform != TargetPlatform.android ? "the host" : "every"} architecture',
+    );
+    if (platform == TargetPlatform.linux) {
+      argParser.addMultiOption(
         'targets',
-        valueHelp: 'deb,zip,appimage,rpm',
-        help: 'The linux package formats (comma separated)',
-      );
-    } else {
-      argParser.addOption(
-        'arch',
-        valueHelp: arches.map((e) => e.name).join(','),
-        help: 'The $name build archName',
+        abbr: 't',
+        allowed: ['deb', 'rpm', 'appimage', 'zip'],
+        help: 'Linux package formats, required for --out app (comma-separated)',
       );
     }
     argParser.addOption(
       'out',
-      valueHelp: [
+      abbr: 'o',
+      allowed: [
         if (platform.buildable) 'app',
         'core',
         'core-only',
         'helper',
-      ].join(','),
-      help: 'The $name build arch',
+      ],
+      help: 'app: package; core: core (+ Windows helper); '
+          'core-only: core only; helper: helper only',
+      defaultsTo: platform.buildable ? 'app' : 'core',
     );
     argParser.addOption(
       'core-hash',
@@ -634,12 +634,15 @@ class BuildCommand extends Command {
     );
     argParser.addOption(
       'env',
-      valueHelp: ['pre', 'stable'].join(','),
-      help: 'The $name build env',
+      abbr: 'e',
+      allowed: ['pre', 'stable'],
+      help: 'The value of dart-define APP_ENV, used to identify the release channel',
+      defaultsTo: 'pre',
     );
     argParser.addFlag(
       'compatible',
-      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+      abbr: 'C',
+      help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
     argParser.addFlag('dev', help: 'Build debug/dev variant');
     argParser.addFlag(
@@ -671,7 +674,7 @@ class BuildCommand extends Command {
     required TargetPlatform platform,
     required String targets,
     String args = '',
-    required String env,
+    required String appEnv,
     required String suffix,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
@@ -693,7 +696,7 @@ class BuildCommand extends Command {
     await Build.exec(
       name: description,
       Build.getExecutable(
-'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg$ipinfoArg --build-dart-define=APP_ENV=$env$appDevArg',
+'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg$ipinfoArg --build-dart-define=APP_ENV=$appEnv$appDevArg',
       ),
     );
   }
@@ -782,7 +785,7 @@ class BuildCommand extends Command {
     await execute(
       archName: argResults?['arch'],
       out: argResults?['out'],
-      env: argResults?['env'] ?? 'pre',
+      appEnv: argResults?['env'] ?? 'pre',
       dev: argResults?['dev'] ?? false,
       ensure: argResults?['ensure'] ?? false,
       compatible: argResults?['compatible'] ?? false,
@@ -793,7 +796,7 @@ class BuildCommand extends Command {
   Future<void> execute({
     String? archName,
     String? out,
-    String env = 'pre',
+    String appEnv = 'pre',
     bool dev = false,
     bool ensure = false,
     bool compatible = false,
@@ -836,6 +839,10 @@ class BuildCommand extends Command {
     } else {
       arch = arches.where((element) => element.name == archParam).firstOrNull;
       if (arch == null) throw 'Invalid arch parameter!';
+    }
+
+    if (compatible && arch != Arch.amd64) {
+      throw '--compatible is only supported on amd64';
     }
 
     if (ensure && actualOut != 'app') {
@@ -926,7 +933,7 @@ class BuildCommand extends Command {
           platform: platform,
           targets: 'exe',
           args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
         );
         return;
@@ -980,7 +987,7 @@ class BuildCommand extends Command {
             platform: platform,
             targets: t,
             args: ' --description $desc --build-target-platform $defaultTarget',
-            env: env,
+            appEnv: appEnv,
             suffix: currentSuffix,
           );
         }
@@ -1006,7 +1013,7 @@ class BuildCommand extends Command {
           platform: platform,
           targets: 'apk',
           args: buildArgs,
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
         );
         return;
@@ -1036,7 +1043,7 @@ class BuildCommand extends Command {
             platform: platform,
             targets: 'dmg',
             args: ' --description $desc',
-            env: env,
+            appEnv: appEnv,
             suffix: appAssetSuffix,
           );
         } finally {
@@ -1066,7 +1073,7 @@ class AutoBuildCommand extends Command {
     );
     argParser.addFlag(
       'compatible',
-      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+      help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
     argParser.addFlag('dev', help: 'Build debug/dev variant');
     argParser.addFlag(
@@ -1204,5 +1211,11 @@ Future<void> main(Iterable<String> args) async {
   runner.addCommand(BuildCommand(platform: TargetPlatform.linux));
   runner.addCommand(BuildCommand(platform: TargetPlatform.windows));
   runner.addCommand(BuildCommand(platform: TargetPlatform.macos));
-  await runner.run(args);
+  try {
+    await runner.run(args);
+  } on UsageException catch (e) {
+    print(e.message);
+    print(e.usage);
+    exitCode = 64;
+  }
 }
