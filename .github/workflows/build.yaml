@@ -28,6 +28,10 @@ jobs:
             arch: arm64
 
     steps:
+      - name: Enable git core.longpaths (Windows ARM)
+        if: matrix.os == 'windows-11-arm'
+        run: git config --global core.longpaths true
+      
       - name: Checkout
         uses: actions/checkout@v6
         with:
