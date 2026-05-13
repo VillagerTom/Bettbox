@@ -613,7 +613,9 @@ class BuildCommand extends Command {
 
     switch (platform) {
       case TargetPlatform.windows:
-        // TODO: Add checks for Windows ARM
+        if (!arch!.same) {
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
         await checkDeps(
           commands: ['cargo'],
           files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
