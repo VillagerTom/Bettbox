@@ -571,7 +571,9 @@ class BuildCommand extends Command {
 
     switch (platform) {
       case TargetPlatform.windows:
-        // TODO: Add checks for Windows ARM
+        if (!arch!.same) {
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
         await checkDeps(
           commands: ['cargo'],
           files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
@@ -587,7 +589,7 @@ class BuildCommand extends Command {
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
         final List<String> targets = argResults?['targets'];
-        if (!arch!.same) { // 逆天 Dart Analyzer 不认得 switch 分支里的条件限制
+        if (!arch!.same) {
           throw 'Corss-build to $name ${arch.name} target is not currently supported!';
         }
         if (targets.isEmpty) {
