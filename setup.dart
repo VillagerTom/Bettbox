@@ -375,40 +375,6 @@ class BuildCommand extends Command {
       .map((e) => e.arch!)
       .toList();
 
-  Future<void> _getLinuxDependencies(Arch arch) async {
-    await Build.exec(Build.getExecutable('sudo apt update -y'));
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y ninja-build libgtk-3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y libayatana-appindicator3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt-get install -y libkeybinder-3.0-dev'),
-    );
-    await Build.exec(Build.getExecutable('sudo apt install -y locate'));
-    if (arch == Arch.amd64) {
-      await Build.exec(
-        Build.getExecutable('sudo apt install -y rpm patchelf libfuse2'),
-      );
-
-      final downloadName = arch == Arch.amd64 ? 'x86_64' : 'aarch64';
-      await Build.exec(
-        Build.getExecutable(
-          'wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-$downloadName.AppImage',
-        ),
-      );
-      await Build.exec(Build.getExecutable('chmod +x appimagetool'));
-      await Build.exec(
-        Build.getExecutable('sudo mv appimagetool /usr/local/bin/'),
-      );
-    }
-  }
-
-  Future<void> _getMacosDependencies() async {
-    await Build.exec(Build.getExecutable('npm install -g appdmg'));
-  }
-
   Future<void> _setMacOSImpeller(bool enable) async {
     final infoPlistPath = 'macos/Runner/Info.plist';
     final file = File(infoPlistPath);
@@ -670,7 +636,6 @@ class BuildCommand extends Command {
           if (arch == Arch.amd64) 'rpm',
         ];
         final defaultTarget = targetMap[arch];
-        await _getLinuxDependencies(arch!);
         for (final t in targets) {
           final ext = t == 'appimage' ? 'AppImage' : t;
           final currentSuffix = 'linux-$desc.$ext';
@@ -710,7 +675,6 @@ class BuildCommand extends Command {
         );
         return;
       case Target.macos:
-        await _getMacosDependencies();
         await _setMacOSImpeller(!compatible);
         _buildDistributor(
           target: target,
