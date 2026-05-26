@@ -357,40 +357,6 @@ class BuildCommand extends Command {
       .map((e) => e.arch!)
       .toList();
 
-  Future<void> _getLinuxDependencies(Arch arch) async {
-    await Build.exec(Build.getExecutable('sudo apt update -y'));
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y ninja-build libgtk-3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y libayatana-appindicator3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt-get install -y libkeybinder-3.0-dev'),
-    );
-    await Build.exec(Build.getExecutable('sudo apt install -y locate'));
-    if (arch == Arch.amd64) {
-      await Build.exec(
-        Build.getExecutable('sudo apt install -y rpm patchelf libfuse2'),
-      );
-
-      final downloadName = arch == Arch.amd64 ? 'x86_64' : 'aarch64';
-      await Build.exec(
-        Build.getExecutable(
-          'wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-$downloadName.AppImage',
-        ),
-      );
-      await Build.exec(Build.getExecutable('chmod +x appimagetool'));
-      await Build.exec(
-        Build.getExecutable('sudo mv appimagetool /usr/local/bin/'),
-      );
-    }
-  }
-
-  Future<void> _getMacosDependencies() async {
-    await Build.exec(Build.getExecutable('npm install -g appdmg'));
-  }
-
   Future<void> _setMacOSCompatibleBuild(bool enable) async {
     final infoPlistPath = 'macos/Runner/Info.plist';
     final file = File(infoPlistPath);
@@ -428,7 +394,9 @@ class BuildCommand extends Command {
     }
     
     await file.writeAsString(content);
-    print('macOS ${enable ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $enable');
+    print(
+      'macOS ${enable ? "Compatible" : "Standard"} build: FLTDisableImpeller set to $enable',
+    );
   }
 
   Future<void> _buildDistributor({
@@ -497,6 +465,7 @@ class BuildCommand extends Command {
             ? await Build.calcSha256(corePaths.first)
             : null;
         Build.buildHelper(target, token!);
+
         _buildDistributor(
           target: target,
           targets: 'exe',
@@ -512,7 +481,7 @@ class BuildCommand extends Command {
           if (arch == Arch.amd64) 'rpm',
         ].join(',');
         final defaultTarget = targetMap[arch];
-        await _getLinuxDependencies(arch!);
+
         _buildDistributor(
           target: target,
           targets: targets,
@@ -544,7 +513,6 @@ class BuildCommand extends Command {
         );
         return;
       case Target.macos:
-        await _getMacosDependencies();
         // For compatible build, disable Impeller and use Skia renderer
         if (compatible) {
           await _setMacOSCompatibleBuild(true);
