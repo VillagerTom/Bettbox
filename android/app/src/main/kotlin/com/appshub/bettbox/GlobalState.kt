@@ -145,7 +145,7 @@ object GlobalState {
         updateRunState(RunState.PENDING)
         startPendingTimeout()
         runLock.withLock {
-            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine()
+            getCurrentTilePlugin()?.handleStart() ?: initServiceEngine(listOf("quick"))
         }
         return true
     }

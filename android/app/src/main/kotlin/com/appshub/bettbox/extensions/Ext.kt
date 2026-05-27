@@ -105,6 +105,12 @@ fun Context.getActionPendingIntent(action: String): PendingIntent {
     return PendingIntent.getActivity(this, 0, getActionIntent(action), flags)
 }
 
+fun Context.getActionBroadcastIntent(action: String): Intent =
+    Intent().apply {
+        this.action = wrapAction(action)
+        setPackage(packageName)
+    }
+
 private fun numericToTextFormat(address: Inet6Address): String = buildString(39) {
     val src = address.address
     for (i in 0 until 8) {

@@ -97,6 +97,16 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".ActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="${applicationId}.action.START" />
+                <action android:name="${applicationId}.action.STOP" />
+                <action android:name="${applicationId}.action.CHANGE" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".services.BettboxTileService"
             android:exported="true"
