@@ -483,6 +483,11 @@ class BuildCommand extends Command {
       'ensure',
       help: 'Skip build if output artifact already exists',
     );
+    argParser.addFlag(
+      'build-only',
+      abbr: 'B',
+      help: 'Skip packaging the app with flutter_distributor'
+    );
   }
 
   @override
@@ -537,27 +542,41 @@ class BuildCommand extends Command {
     required String appEnv,
     required String suffix,
     bool compatible = false,
+    final bool buildOnly = false,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
-    final sentryArg = sentryDsn.isNotEmpty
-        ? ' --build-dart-define=SENTRY_DSN=$sentryDsn'
-        : '';
-    final suffixArg = suffix.isNotEmpty
-        ? ' --build-dart-define=APP_ASSET_SUFFIX=$suffix'
-        : '';
+    String sentryArg = '';
+    if (sentryDsn.isNotEmpty) {
+      sentryArg = buildOnly
+        ? ' --dart-define=SENTRY_DSN=$sentryDsn'
+        : ' --build-dart-define=SENTRY_DSN=$sentryDsn';
+    }
+    String suffixArg = '';
+    if (suffix.isNotEmpty) {
+      suffixArg = buildOnly
+        ? ' --dart-define=APP_ASSET_SUFFIX=$suffix'
+        : ' --build-dart-define=APP_ASSET_SUFFIX=$suffix';
+    }
 
-    final appDevArg = Build.isDev ? ' --build-dart-define=APP_DEV=true' : '';
+    String appDevArg = '';
+    if (Build.isDev) {
+      appDevArg = buildOnly
+        ? ' --dart-define=APP_DEV=true'
+        : ' --build-dart-define=APP_DEV=true';
+    }
 
     final environment = Map<String, String>.from(Platform.environment);
     if (compatible) {
       environment['BETTBOX_COMPATIBLE_BUILD'] = '1';
     }
 
-    await Build.getDistributor();
+    if (!buildOnly) await Build.getDistributor();
     await Build.exec(
       name: description,
       Build.getExecutable(
-        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg --build-dart-define=APP_ENV=$appEnv$appDevArg',
+        buildOnly
+          ? 'flutter build ${platform == TargetPlatform.android ? "apk" : platform.name} --release --verbose$args$sentryArg$suffixArg --dart-define=APP_ENV=$appEnv$appDevArg'
+          : 'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$appEnv$appDevArg',
       ),
       environment: environment,
     );
@@ -659,6 +678,12 @@ class BuildCommand extends Command {
 
     final bool compatible = argResults?['compatible'] ?? false;
     final bool ensure = argResults?['ensure'] ?? false;
+    bool buildOnly = argResults?['build-only'] ?? false;
+
+    if (platform == TargetPlatform.android && buildOnly) {
+      print('Warning: Ignored --build-only.');
+      buildOnly = false;
+    }
 
     if (ensure && out != 'app') {
       if (_outputsAreFresh(arch)) {
@@ -721,7 +746,7 @@ class BuildCommand extends Command {
 
         await checkDeps(
           commands: ['cargo'],
-          files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
+          files: buildOnly ? null : [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
         );
         final token = platform != TargetPlatform.android
             ? await Build.calcSha256(corePaths.first)
@@ -730,10 +755,13 @@ class BuildCommand extends Command {
         await _buildDistributor(
           platform: platform,
           targets: 'exe',
-          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
+          args: buildOnly
+              ? ' --dart-define=CORE_SHA256=$token'
+              : ' --description $desc --build-dart-define=CORE_SHA256=$token',
           appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
+          buildOnly: buildOnly,
         );
         return;
       case TargetPlatform.linux:
@@ -743,12 +771,14 @@ class BuildCommand extends Command {
 
         final validTargets = ['deb', 'rpm', 'appimage', 'zip'];
         final targets = argResults?['targets'] ?? <String>[];
-        if (targets.isEmpty) {
-          throw 'Invalid targets parameter';
-        }
-        final invalidTargets = targets.where((t) => !validTargets.contains(t)).toList();
-        if (invalidTargets.isNotEmpty) {
-          throw 'Invalid targets parameter: ${invalidTargets.join(', ')}';
+        if (!buildOnly) {
+          if (targets.isEmpty) {
+            throw 'Invalid targets parameter';
+          }
+          final invalidTargets = targets.where((t) => !validTargets.contains(t)).toList();
+          if (invalidTargets.isNotEmpty) {
+            throw 'Invalid targets parameter: ${invalidTargets.join(', ')}';
+          }
         }
 
         final requiredCmds = ['clang', 'cmake', 'ninja'];
@@ -780,10 +810,13 @@ class BuildCommand extends Command {
           await _buildDistributor(
             platform: platform,
             targets: t,
-            args: ' --description $desc --build-target-platform $defaultTarget',
+            args: buildOnly
+                ? ' --target-platform $defaultTarget' 
+                : ' --description $desc --build-target-platform $defaultTarget',
             appEnv: appEnv,
             suffix: currentSuffix,
             compatible: compatible,
+            buildOnly: buildOnly,
           );
         }
         return;
@@ -813,15 +846,16 @@ class BuildCommand extends Command {
         );
         return;
       case TargetPlatform.macos:
-        await checkDeps(commands: ['appdmg']);
+        if (!buildOnly) await checkDeps(commands: ['appdmg']);
         await _setMacOSImpeller(!compatible);
         await _buildDistributor(
           platform: platform,
           targets: 'dmg',
-          args: ' --description $desc',
+          args: buildOnly ? '' : ' --description $desc',
           appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
+          buildOnly: buildOnly,
         );
         return;
     }
