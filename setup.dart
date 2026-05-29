@@ -493,6 +493,11 @@ class BuildCommand extends Command {
       abbr: 'C',
       help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
+    argParser.addFlag(
+      'build-only',
+      abbr: 'B',
+      help: 'Skip packaging the app with flutter_distributor'
+    );
   }
 
   @override
@@ -554,18 +559,24 @@ class BuildCommand extends Command {
     String args = '',
     required String appEnv,
     Map<String, String>? buildEnv,
+    final bool buildOnly = false,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
-    final sentryArg = sentryDsn.isNotEmpty
-        ? ' --build-dart-define=SENTRY_DSN=$sentryDsn'
-        : '';
+    String sentryArg = '';
+    if (sentryDsn.isNotEmpty) {
+      sentryArg = buildOnly
+        ? ' --dart-define=SENTRY_DSN=$sentryDsn'
+        : ' --build-dart-define=SENTRY_DSN=$sentryDsn';
+    }
 
-    await Build.getDistributor();
+    if (!buildOnly) await Build.getDistributor();
     await Build.exec(
       name: description,
       environment: buildEnv,
       Build.getExecutable(
-        'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$appEnv',
+        buildOnly
+          ? 'flutter build ${platform == TargetPlatform.android ? "apk" : platform.name} --release --dart-define=APP_ENV=$appEnv --verbose$args$sentryArg'
+          : 'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$appEnv',
       ),
     );
   }
@@ -592,6 +603,11 @@ class BuildCommand extends Command {
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
+    bool buildOnly = argResults?['build-only'] ?? false;
+    if (platform == TargetPlatform.android && buildOnly) {
+      print('Warning: Ignored --build-only.');
+      buildOnly = false;
+    }
 
     final corePaths = await Build.buildCore(
       platform: platform,
@@ -618,7 +634,7 @@ class BuildCommand extends Command {
         }
         await checkDeps(
           commands: ['cargo'],
-          files: [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
+          files: buildOnly ? null : [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
         );
         final token = platform != TargetPlatform.android
             ? await Build.calcSha256(corePaths.first)
@@ -626,17 +642,24 @@ class BuildCommand extends Command {
         Build.buildHelper(platform, token!);
 
         buildTargets = 'exe';
-        buildArgs = ' --description $desc --build-dart-define=CORE_SHA256=$token';
+        buildArgs = buildOnly
+            ? ' --dart-define=CORE_SHA256=$token'
+            : ' --description $desc --build-dart-define=CORE_SHA256=$token';
         break;
 
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final List<String> targets = argResults?['targets'];
+        List<String> targets = argResults?['targets'];
+        if (buildOnly) {
+          if (targets.isNotEmpty) {
+            print('Warning: --build-only is specified, ignoring targets parameter.');
+          }
+          targets = [];
+        } else if (targets.isEmpty) {
+          throw 'Invalid targets parameter';
+        }
         if (!arch!.same) {
           throw 'Corss-build to $name ${arch.name} target is not currently supported!';
-        }
-        if (targets.isEmpty) {
-          throw 'Invalid targets parameter';
         }
         final defaultTarget = targetMap[arch];
 
@@ -660,8 +683,9 @@ class BuildCommand extends Command {
         );
 
         buildTargets = targets.join(',');
-        buildArgs =
-            ' --description $desc --build-target-platform $defaultTarget';
+        buildArgs = buildOnly
+            ? ' --target-platform $defaultTarget'
+            : ' --description $desc --build-target-platform $defaultTarget';
         break;
 
       case TargetPlatform.android:
@@ -683,7 +707,8 @@ class BuildCommand extends Command {
         break;
 
       case TargetPlatform.macos:
-        await checkDeps(commands: ['appdmg']);
+        if (!buildOnly) await checkDeps(commands: ['appdmg']);
+
         // For compatible build, disable Impeller and use Skia renderer
         if (compatible) {
           await _setMacOSCompatibleBuild(true);
@@ -698,7 +723,7 @@ class BuildCommand extends Command {
               );
         buildEnv = archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName};
         buildTargets = 'dmg';
-        buildArgs = ' --description $desc';
+        buildArgs = buildOnly ? '' : ' --description $desc';
         break;
     }
 
@@ -708,6 +733,7 @@ class BuildCommand extends Command {
       args: buildArgs,
       appEnv: appEnv,
       buildEnv: buildEnv,
+      buildOnly: buildOnly,
     );
   }
 }
