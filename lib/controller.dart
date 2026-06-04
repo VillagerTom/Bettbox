@@ -25,6 +25,7 @@ import 'common/common.dart';
 import 'common/flclash_database_extractor.dart';
 import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
+import 'views/proxies/common.dart';
 
 class AppController {
   int? lastProfileModified;
@@ -494,6 +495,7 @@ class AppController {
 
   void handleChangeProfile() {
     _ref.read(delayDataSourceProvider.notifier).value = {};
+    cancelDelayTest();
     applyProfile();
     _ref.read(logsProvider.notifier).value = FixedList(maxLength);
     _ref.read(requestsProvider.notifier).value = FixedList(maxLength);

@@ -243,7 +243,7 @@ _ProxiesStyle _$ProxiesStyleFromJson(Map<String, dynamic> json) =>
             (k, e) => MapEntry(k, e as String),
           ) ??
           const {},
-      concurrencyLimit: (json['concurrencyLimit'] as num?)?.toInt() ?? 250,
+      concurrencyLimit: (json['concurrencyLimit'] as num?)?.toInt() ?? 100,
     );
 
 Map<String, dynamic> _$ProxiesStyleToJson(_ProxiesStyle instance) =>
