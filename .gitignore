@@ -39,7 +39,7 @@ migrate_working_dir/
 /specs/
 /dist/
 .test/
-.vscode/
+.vscode/*
 /services/helper/target/
 
 # Symbolication related
@@ -68,3 +68,6 @@ app.*.map.json
 # Version Managers
 .fvmrc
 mise.toml
+
+# VS Code Configs
+!.vscode/launch.json
