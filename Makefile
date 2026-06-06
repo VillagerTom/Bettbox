@@ -39,6 +39,12 @@ windows_app:
 
 windows_app_amd64_compatible:
 	dart ./setup.dart windows --arch amd64 --compatible
+	
+windows_core_and_helper:
+	dart .setup.dart windows --out core,helper
+	
+windows_core_and_helper_amd64_compatible:
+	dart .setup.dart windows --out core,helper --arch amd64 --compatible
 
 linux:
 	dart ./setup.dart linux --build-only

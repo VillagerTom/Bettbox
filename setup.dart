@@ -403,6 +403,8 @@ class Build {
       'BettboxHelperService${platform.executableExtensionName}',
     );
     await File(outPath).copy(targetPath);
+    final shaFile = File(join(outDir, platform.name, '.core_sha256'));
+    await shaFile.writeAsString('CORE_SHA256=$token');
   }
 
   static List<String> getExecutable(String command) {
@@ -477,8 +479,12 @@ class BuildCommand extends Command {
     argParser.addOption(
       'out',
       abbr: 'o',
-      allowed: [if (platform.buildable) 'app', 'core'],
-      help: 'Build the full app or only the core',
+      allowed: [
+        if (platform.buildable) 'app',
+        'core',
+        if (platform == TargetPlatform.windows) 'core,helper',
+      ],
+      help: 'Build the full app; only the core; or core+helper (Windows)',
       defaultsTo: platform.buildable ? 'app' : 'core',
     );
     argParser.addOption(
@@ -616,7 +622,7 @@ class BuildCommand extends Command {
       compatible: compatible,
     );
 
-    if (out != 'app') {
+    if (out == 'core') {
       if (!platform.buildable) print('Platform incompatible, core built only!');
       return;
     }
@@ -639,7 +645,8 @@ class BuildCommand extends Command {
         final token = platform != TargetPlatform.android
             ? await Build.calcSha256(corePaths.first)
             : null;
-        Build.buildHelper(platform, token!);
+        await Build.buildHelper(platform, token!);
+        if (out == 'core,helper') return;
 
         buildTargets = 'exe';
         buildArgs = buildOnly
