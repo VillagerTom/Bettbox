@@ -6,6 +6,7 @@ import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:flutter/material.dart';
+import 'package:silky_scroll/silky_scroll.dart';
 
 const appName = 'Bettbox';
 const appHelperService = 'BettboxHelperService';
@@ -53,6 +54,11 @@ const defaultExternalController = '127.0.0.1:9090';
 const maxMobileWidth = 600;
 const maxLaptopWidth = 840;
 const defaultTestUrl = 'https://g.cn/generate_204';
+const silkyScrollConfig = SilkyScrollConfig(
+  silkyScrollDuration: Duration(milliseconds: 600),
+  scrollSpeed: 1.18,
+  animationCurve: Curves.easeOutCubic,
+);
 
 // Preset test URLs
 const presetTestUrls = [

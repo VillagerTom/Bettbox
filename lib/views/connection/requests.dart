@@ -5,6 +5,7 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:silky_scroll/silky_scroll.dart';
 
 import 'item.dart';
 
@@ -107,10 +108,11 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
 
                       return SizedBox(
                         height: listViewHeight,
-                        child: ListView.builder(
+                        child: SilkyListView.builder(
                           reverse: true,
                           physics: const NextClampingScrollPhysics(),
                           controller: _scrollController,
+                          silkyConfig: silkyScrollConfig,
                           itemBuilder: (_, index) {
                             if (index.isOdd) {
                               return const Divider(height: 0);
@@ -130,12 +132,6 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
                                 appLocalizations.request,
                               ),
                             );
-                          },
-                          itemExtentBuilder: (index, _) {
-                            if (index.isOdd) {
-                              return 0;
-                            }
-                            return TrackerInfoItem.height;
                           },
                           itemCount: requests.length * 2 - 1,
                         ),

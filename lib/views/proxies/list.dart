@@ -6,6 +6,7 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:silky_scroll/silky_scroll.dart';
 
 import 'card.dart';
 import 'common.dart';
@@ -180,20 +181,17 @@ class _ProxyGroupsListState extends ConsumerState<_ProxyGroupsList> {
   @override
   Widget build(BuildContext context) {
     final flatItems = _buildFlatItems();
-    final headerHeight = _getHeaderHeight();
     final itemHeight = getItemHeight(widget.cardType);
 
     return CommonScrollBar(
       controller: _scrollController,
       thumbVisibility: true,
       trackVisibility: true,
-      child: ListView.builder(
+      child: SilkyListView.builder(
         controller: _scrollController,
+        silkyConfig: silkyScrollConfig,
         padding: const EdgeInsets.all(16),
         itemCount: flatItems.length,
-        itemExtentBuilder: (index, _) {
-          return flatItems[index].getHeight(headerHeight, itemHeight);
-        },
         itemBuilder: (context, index) {
           final item = flatItems[index];
           if (item is _HeaderItem) {

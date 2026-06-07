@@ -4,6 +4,7 @@ import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:silky_scroll/silky_scroll.dart';
 
 import '../models/models.dart';
 import '../widgets/widgets.dart';
@@ -155,10 +156,11 @@ class _LogsViewState extends ConsumerState<LogsView> {
 
                       return SizedBox(
                         height: listViewHeight,
-                        child: ListView.builder(
+                        child: SilkyListView.builder(
                           physics: const NextClampingScrollPhysics(),
                           reverse: true,
                           controller: _scrollController,
+                          silkyConfig: silkyScrollConfig,
                           itemBuilder: (_, index) {
                             if (index.isOdd) {
                               return const Divider(height: 0);
@@ -175,12 +177,6 @@ class _LogsViewState extends ConsumerState<LogsView> {
                                 context.commonScaffoldState?.addKeyword(value);
                               },
                             );
-                          },
-                          itemExtentBuilder: (index, _) {
-                            if (index.isOdd) {
-                              return 0;
-                            }
-                            return LogItem.height;
                           },
                           itemCount: logs.length * 2 - 1,
                         ),

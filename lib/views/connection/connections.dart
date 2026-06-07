@@ -9,6 +9,7 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:silky_scroll/silky_scroll.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'item.dart';
@@ -225,8 +226,9 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView>
 
           return CommonScrollBar(
             controller: _scrollController,
-            child: ListView.builder(
+            child: SilkyListView.builder(
               controller: _scrollController,
+              silkyConfig: silkyScrollConfig,
               itemBuilder: (context, index) {
               if (index.isOdd) {
                 return const Divider(height: 0);
@@ -256,13 +258,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView>
                 ),
               );
             },
-            itemExtentBuilder: (index, _) {
-              if (index.isOdd) {
-                return 0;
-              }
-              return TrackerInfoItem.height;
-            },
-              itemCount: connections.length * 2 - 1,
+            itemCount: connections.length * 2 - 1,
             ),
           );
         },
