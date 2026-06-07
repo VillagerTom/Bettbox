@@ -9,6 +9,7 @@ import "C"
 import (
 	bridge "core/dart-bridge"
 	"encoding/json"
+	"github.com/metacubex/mihomo/log"
 	"sync"
 	"time"
 	"unsafe"
@@ -43,7 +44,10 @@ func sendBatchMessages() {
 }
 
 func shouldBatch(messageType MessageType) bool {
-	return messageType == LogMessage || messageType == RequestMessage
+	if messageType != LogMessage && messageType != RequestMessage {
+		return false
+	}
+	return log.Level() == log.DEBUG
 }
 
 //export initNativeApiBridge
