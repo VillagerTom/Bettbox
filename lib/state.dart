@@ -516,7 +516,9 @@ class GlobalState {
     }
     rawConfig['tun']['enable'] = realPatchConfig.tun.enable;
     rawConfig['tun']['device'] = realPatchConfig.tun.device;
-    rawConfig['tun']['dns-hijack'] = realPatchConfig.tun.dnsHijack;
+    final dnsHijack = realPatchConfig.tun.dnsHijack;
+    rawConfig['tun']['dns-hijack'] =
+        dnsHijack.isEmpty ? const ['any:53'] : dnsHijack;
     rawConfig['tun']['stack'] = realPatchConfig.tun.stack.name;
     rawConfig['tun']['route-address'] = realPatchConfig.tun.routeAddress;
     rawConfig['tun']['route-exclude-address'] = realPatchConfig.tun.routeExcludeAddress;
