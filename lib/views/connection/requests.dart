@@ -1,7 +1,6 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/providers/providers.dart';
-import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,10 +21,7 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
   @override
   void initState() {
     super.initState();
-    final requests = globalState.appState.requests.list;
-    _scrollController = ScrollController(
-      initialScrollOffset: requests.length * TrackerInfoItem.height,
-    );
+    _scrollController = ScrollController();
   }
 
   @override
@@ -98,43 +94,30 @@ class _RequestsViewState extends ConsumerState<RequestsView> {
                   dataSource: requests,
                   enable: _autoScrollToEnd,
                   onCancelToEnd: _cancelAutoScroll,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final contentHeight = requests.length * TrackerInfoItem.height;
-                      final listViewHeight = contentHeight < constraints.maxHeight
-                          ? contentHeight
-                          : constraints.maxHeight;
-
-                      return SizedBox(
-                        height: listViewHeight,
-                        child: AdaptiveListView.builder(
-                          reverse: true,
-                          physics: const NextClampingScrollPhysics(),
-                          controller: _scrollController,
-                          itemBuilder: (_, index) {
-                            if (index.isOdd) {
-                              return const Divider(height: 0);
-                            }
-                            final itemIndex = index ~/ 2;
-                            if (itemIndex >= requests.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final trackerInfo = requests[itemIndex];
-                            return TrackerInfoItem(
-                              key: ValueKey(trackerInfo.id),
-                              trackerInfo: trackerInfo,
-                              onClickKeyword: (value) {
-                                context.commonScaffoldState?.addKeyword(value);
-                              },
-                              detailTitle: appLocalizations.details(
-                                appLocalizations.request,
-                              ),
-                            );
-                          },
-                          itemCount: requests.length * 2 - 1,
+                  child: AdaptiveListView.builder(
+                    reverse: true,
+                    controller: _scrollController,
+                    itemBuilder: (_, index) {
+                      if (index.isOdd) {
+                        return const Divider(height: 0);
+                      }
+                      final itemIndex = index ~/ 2;
+                      if (itemIndex >= requests.length) {
+                        return const SizedBox.shrink();
+                      }
+                      final trackerInfo = requests[itemIndex];
+                      return TrackerInfoItem(
+                        key: ValueKey(trackerInfo.id),
+                        trackerInfo: trackerInfo,
+                        onClickKeyword: (value) {
+                          context.commonScaffoldState?.addKeyword(value);
+                        },
+                        detailTitle: appLocalizations.details(
+                          appLocalizations.request,
                         ),
                       );
                     },
+                    itemCount: requests.length * 2 - 1,
                   ),
                 ),
               ),
