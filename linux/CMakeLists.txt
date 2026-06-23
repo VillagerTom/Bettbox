@@ -11,8 +11,6 @@ set(BINARY_NAME "Bettbox")
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "com.appshub.bettbox")
 
-add_definitions(-DFLUTTER_DISABLE_IMPELLER=1)
-
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
 cmake_policy(SET CMP0063 NEW)
@@ -128,6 +126,11 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 # libclash.so
 set(CLASH_DIR "../libclash/linux")
 install(PROGRAMS "${CLASH_DIR}/BettboxCore" DESTINATION "${BUILD_BUNDLE_DIR}"
+  CONFIGURATIONS Profile;Release
+  COMPONENT Runtime)
+
+install(PROGRAMS "${CLASH_DIR}/BettboxDevCore" DESTINATION "${BUILD_BUNDLE_DIR}"
+  CONFIGURATIONS Debug
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
