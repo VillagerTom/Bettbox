@@ -312,8 +312,9 @@ Win32Window::MessageHandler(HWND hwnd,
         PostMessage(hwnd, WM_SIZE, SIZE_RESTORED,
                     MAKELPARAM(rect.right - rect.left, rect.bottom - rect.top));
       }
+      return 0;
     }
-    return 0;
+    break;
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);
