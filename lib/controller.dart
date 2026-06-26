@@ -541,13 +541,27 @@ class AppController {
     addCheckIpNumDebounce();
   }
 
+  bool _suppressNeedSetupListener = false;
+
+  bool get suppressNeedSetupListener => _suppressNeedSetupListener;
+
   Future<void> handleChangeProfile() async {
     _ref.read(delayDataSourceProvider.notifier).value = {};
     await applyProfile(silence: true);
-    await restartCore();
     _ref.read(logsProvider.notifier).value = FixedList(maxLength);
     _ref.read(requestsProvider.notifier).value = FixedList(maxLength);
     globalState.computeHeightMapCache = {};
+  }
+
+  Future<void> handleSwitchProfile(String profileId) async {
+    _suppressNeedSetupListener = true;
+    try {
+      _ref.read(currentProfileIdProvider.notifier).value = profileId;
+      await handleChangeProfile();
+      await restartCore();
+    } finally {
+      _suppressNeedSetupListener = false;
+    }
   }
 
   void updateBrightness() {

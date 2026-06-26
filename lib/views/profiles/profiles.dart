@@ -170,8 +170,10 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
                         profile: profilesSelectorState.profiles[i],
                         groupValue: profilesSelectorState.currentProfileId,
                         onChanged: (profileId) {
-                          ref.read(currentProfileIdProvider.notifier).value =
-                              profileId;
+                          if (profileId == null) return;
+                          globalState.appController.handleSwitchProfile(
+                            profileId,
+                          );
                         },
                       ),
                     ),
