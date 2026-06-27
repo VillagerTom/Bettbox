@@ -54,7 +54,11 @@ class BettboxVpnService : VpnService(), BaseServiceInterface {
                 }
             }
         }
-        registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Context.RECEIVER_NOT_EXPORTED else 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+        }
     }
 
     override suspend fun start(options: VpnOptions): Int = with(Builder()) {
