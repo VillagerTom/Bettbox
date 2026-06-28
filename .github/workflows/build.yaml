@@ -108,6 +108,8 @@ jobs:
               "compatible": true
             }
           ]'
+          
+          FILTERED=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             FILTERED=$(echo "$MATRIX" | jq -c '[.[] | select(
               (.platform == "android" and ${{ inputs.build_android }}) or
@@ -115,10 +117,10 @@ jobs:
               (.platform == "macos" and ${{ inputs.build_mac }}) or
               (.platform == "linux" and ${{ inputs.build_linux }})
             )]')
-            echo "matrix=$FILTERED" >> "$GITHUB_OUTPUT"
           else
-            echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+            FILTERED=$(echo "$MATRIX" | jq -c '[.[]]') 
           fi
+          echo "matrix=$FILTERED" >> "$GITHUB_OUTPUT"
 
   build:
     needs: [setup-matrix]
