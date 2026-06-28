@@ -611,6 +611,10 @@ class BuildCommand extends Command {
 
     final String desc = '${archParam ?? arch?.name}${compatible ? "-compatible" : ""}';
 
+    String buildTargets;
+    String buildArgs = '';
+    Map<String, String>? buildEnv;
+
     switch (platform) {
       case TargetPlatform.windows:
         // TODO: Add checks for Windows ARM
@@ -623,16 +627,16 @@ class BuildCommand extends Command {
             : null;
         Build.buildHelper(platform, token!);
 
-        _buildDistributor(
-          platform: platform,
-          targets: 'exe',
-          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
-          env: env,
-        );
-        return;
+        buildTargets = 'exe';
+        buildArgs = ' --description $desc --build-dart-define=CORE_SHA256=$token';
+        break;
+
       case TargetPlatform.linux:
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
         final targets = argResults?['targets'];
+        if (!arch!.same) {
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
         if (targets == null || targets.trim().isEmpty) {
           throw 'Invalid targets parameter';
         }
@@ -657,13 +661,11 @@ class BuildCommand extends Command {
           rtLibs: requiredRtLibs,
         );
 
-        _buildDistributor(
-          platform: platform,
-          targets: targets,
-          args: ' --description $desc --build-target-platform $defaultTarget',
-          env: env,
-        );
-        return;
+        buildTargets = targets;
+        buildArgs =
+            ' --description $desc --build-target-platform $defaultTarget';
+        break;
+
       case TargetPlatform.android:
         final targetMap = {
           Arch.arm: 'android-arm',
@@ -676,17 +678,12 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archParam == 'universal'
+        buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
+        buildTargets = 'apk';
+        break;
 
-        _buildDistributor(
-          platform: platform,
-          targets: 'apk',
-          args: buildArgs,
-          env: env,
-        );
-        return;
       case TargetPlatform.macos:
         await checkDeps(commands: ['appdmg']);
         // For compatible build, disable Impeller and use Skia renderer
@@ -701,15 +698,19 @@ class BuildCommand extends Command {
             : arch?.archMap.keys.firstWhere(
                 (k) => arch?.archMap[k] == arch?.name,
               );
-        _buildDistributor(
-          platform: platform,
-          targets: 'dmg',
-          args: ' --description $desc',
-          env: env,
-          buildEnv: archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName},
-        );
-        return;
+        buildEnv = archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName};
+        buildTargets = 'dmg';
+        buildArgs = ' --description $desc';
+        break;
     }
+
+    _buildDistributor(
+      platform: platform,
+      targets: buildTargets,
+      args: buildArgs,
+      env: env,
+      buildEnv: buildEnv,
+    );
   }
 }
 
