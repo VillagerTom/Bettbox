@@ -68,28 +68,47 @@ enum CoreMode { core, lib }
 enum Arch { amd64, arm64, arm }
 
 extension ArchExt on Arch {
+  Map<String, String> get archMap {
+    switch (Platform.operatingSystem) {
+      case 'windows':
+        return {
+          'AMD64': 'amd64',
+          'x86': 'amd32',
+          'ARM64': 'arm64',
+          'ARM': 'arm'
+        };
+      case 'linux' || 'android':
+        return {
+          'x86_64': 'amd64',
+          'i386': 'amd32',
+          'i486': 'amd32',
+          'i586': 'amd32',
+          'i686': 'amd32',
+          'aarch64': 'arm64',
+          'armv5l': 'arm',
+          'armv6l': 'arm',
+          'armv7l': 'arm'
+        };
+      case 'macos':
+        return {
+          'x86_64': 'amd64',
+          'arm64': 'arm64',
+          'arm64e': 'arm64'
+        };
+      default:
+        throw 'Unsupported platform!';
+    }
+  }
+
   bool get same {
-    String hostArch;
+    final String hostArchName;
     if (Platform.isWindows) {
-      hostArch = Platform.environment['PROCESSOR_ARCHITECTURE']!;
+      hostArchName = Platform.environment['PROCESSOR_ARCHITECTURE']!;
     } else {
       var info = Process.runSync('uname', ['-m']);
-      hostArch = info.stdout.toString().trim();
+      hostArchName = info.stdout.toString().trim();
     }
-    switch (hostArch) {
-      case 'x86_64' || 'AMD64':
-        hostArch = 'amd64';
-        break;
-      case 'i386' || 'i486' || 'i586' || 'i686' || 'x86':
-        hostArch = 'amd32';
-        break;
-      case 'aarch64' || 'arm64' || 'arm64e' || 'ARM64':
-        hostArch = 'arm64';
-        break;
-      case 'armv5l' || 'armv6l' || 'armv7l' || 'ARM':
-        hostArch = 'arm';
-        break;
-    }
+    final hostArch = archMap[hostArchName] ?? hostArchName;
     return name == hostArch ? true : false;
   }
 }
