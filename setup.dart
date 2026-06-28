@@ -598,13 +598,22 @@ class BuildCommand extends Command {
   Future<void> run() async {
     final mode = target == Target.android ? Mode.lib : Mode.core;
     final String out = argResults?['out'] ?? (target.same ? 'app' : 'core');
-    final String? archName = argResults?['arch'];
+    final String? archParam = argResults?['arch'];
     final String env = argResults?['env'] ?? 'pre';
     Build.isDev = argResults?['dev'] ?? false;
-    Arch? arch = arches.where((element) => element.name == archName).firstOrNull;
 
-    if (target != Target.android) {
-      arch ??= arches.where((element) => element.same).first;
+    Arch? arch;
+    if (archParam == null) {
+      if (target != Target.android) {
+        arch = arches.firstWhere((element) => element.same);
+      }
+    } else if (archParam == 'universal') {
+      if (target != Target.android && target != Target.macos) {
+        throw 'Invalid arch parameter!';
+      }
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
@@ -632,7 +641,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = '${archName ?? arch!.name}${compatible ? "-compatible" : ""}';
+    final String desc = '${archParam ?? arch!.name}${compatible ? "-compatible" : ""}';
 
     String appAssetSuffix = '';
     switch (target) {
@@ -645,7 +654,7 @@ class BuildCommand extends Command {
       case Target.linux:
         break;
       case Target.android:
-        if (archName == 'universal') {
+        if (archParam == 'universal') {
           appAssetSuffix = 'android-universal.apk';
         } else if (arch == Arch.arm64) {
           appAssetSuffix = 'android-arm64-v8a.apk';
@@ -712,7 +721,7 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
