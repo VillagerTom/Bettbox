@@ -636,14 +636,23 @@ class BuildCommand extends Command {
   @override
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
-    final String out = argResults?['out'] ?? (platform.buildable ? 'app' : 'core');
-    final String? archName = argResults?['arch'];
+    final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
+    final String? archParam = argResults?['arch'];
     final String env = argResults?['env'] ?? 'pre';
     Build.isDev = argResults?['dev'] ?? false;
-    Arch? arch = arches.where((element) => element.name == archName).firstOrNull;
 
-    if (platform != TargetPlatform.android) {
-      arch ??= arches.where((element) => element.same).first;
+    Arch? arch;
+    if (archParam == null) {
+      if (platform != TargetPlatform.android) {
+        arch = arches.firstWhere((element) => element.same);
+      }
+    } else if (archParam == 'universal') {
+      if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
+        throw 'Invalid arch parameter!';
+      }
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
@@ -675,7 +684,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = '${archName ?? arch!.name}${compatible ? "-compatible" : ""}';
+    final String desc = '${archParam ?? arch!.name}${compatible ? "-compatible" : ""}';
 
     String appAssetSuffix = '';
     switch (platform) {
@@ -688,7 +697,7 @@ class BuildCommand extends Command {
       case TargetPlatform.linux:
         break;
       case TargetPlatform.android:
-        if (archName == 'universal') {
+        if (archParam == 'universal') {
           appAssetSuffix = 'android-universal.apk';
         } else if (arch == Arch.arm64) {
           appAssetSuffix = 'android-arm64-v8a.apk';
@@ -791,7 +800,7 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
