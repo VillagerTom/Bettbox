@@ -291,9 +291,13 @@ class Build {
     }).toList();
 
     final List<String> corePaths = [];
-
+    final List<String> macOSCorePaths = [];
     for (final item in items) {
-      final outFileDir = join(outDir, item.platform.name, item.archName);
+      final outFileDir = join(
+        outDir,
+        item.platform.name,
+        item.platform == TargetPlatform.macos ? item.arch.name : item.archName
+      );
 
       final file = File(outFileDir);
       if (file.existsSync()) {
@@ -304,7 +308,11 @@ class Build {
           ? '$libName${item.platform.dynamicLibExtensionName}'
           : '$coreName${item.platform.executableExtensionName}';
       final outPath = join(outFileDir, fileName);
-      corePaths.add(outPath);
+      if (item.platform == TargetPlatform.macos) {
+        macOSCorePaths.add(outPath);
+      } else {
+        corePaths.add(outPath);
+      }
 
       final Map<String, String> env = {};
       env['GOOS'] = item.platform.os;
@@ -369,7 +377,20 @@ class Build {
         workingDirectory: _coreDir,
       );
     }
+    if (macOSCorePaths.isNotEmpty) {
+      final outFileDir = join(outDir, TargetPlatform.macos.name);
+      final fileName = isLib
+          ? '$libName${TargetPlatform.macos.dynamicLibExtensionName}'
+          : '$coreName${TargetPlatform.macos.executableExtensionName}';
+      final outPath = join(outFileDir, fileName);
 
+      await exec(
+        macOSCorePaths.length > 1
+            ? ['lipo', '-create', '-output', outPath, ...macOSCorePaths]
+            : ['cp', macOSCorePaths.first, outPath],
+      );
+      corePaths.add(outPath);
+    }
     return corePaths;
   }
 
@@ -536,6 +557,7 @@ class BuildCommand extends Command {
     required String targets,
     String args = '',
     required String env,
+    Map<String, String>? buildEnv,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
     final sentryArg = sentryDsn.isNotEmpty
@@ -545,6 +567,7 @@ class BuildCommand extends Command {
     await Build.getDistributor();
     await Build.exec(
       name: description,
+      environment: buildEnv,
       Build.getExecutable(
         'flutter_distributor package --skip-clean --platform ${platform.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$env',
       ),
@@ -672,11 +695,18 @@ class BuildCommand extends Command {
         } else {
           await _setMacOSCompatibleBuild(false);
         }
+
+        final archName = archParam == 'universal'
+            ? null
+            : arch?.archMap.keys.firstWhere(
+                (k) => arch?.archMap[k] == arch?.name,
+              );
         _buildDistributor(
           platform: platform,
           targets: 'dmg',
           args: ' --description $desc',
           env: env,
+          buildEnv: archName == null ? null : {'FLUTTER_XCODE_ARCHS': archName},
         );
         return;
     }
