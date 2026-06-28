@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' show dirname, join;
+import 'package:restart_app/restart_app.dart';
 
 import 'backup_and_recovery.dart';
 import 'developer.dart';
@@ -70,9 +71,10 @@ class _ToolViewState extends ConsumerState<ToolsView> {
     return generateSection(
       title: appLocalizations.other,
       items: [
-        _DisclaimerItem(),
-        if (enableDeveloperMode) _DeveloperItem(),
-        _InfoItem(),
+        const _DisclaimerItem(),
+        if (system.isAndroid) const _RestartAppItem(),
+        if (enableDeveloperMode) const _DeveloperItem(),
+        const _InfoItem(),
       ],
     );
   }
@@ -356,6 +358,21 @@ class _DeveloperItem extends StatelessWidget {
         title: appLocalizations.developerMode,
         widget: const DeveloperView(),
       ),
+    );
+  }
+}
+
+class _RestartAppItem extends StatelessWidget {
+  const _RestartAppItem();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListItem(
+      leading: const Icon(Icons.refresh),
+      title: Text(appLocalizations.restartApp),
+      onTap: () async {
+        await Restart.restartApp();
+      },
     );
   }
 }
