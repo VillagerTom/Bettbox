@@ -555,15 +555,21 @@ class BuildCommand extends Command {
   Future<void> run() async {
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
     final String out = argResults?['out'] ?? (platform.same ? 'app' : 'core');
-    final String? archName = argResults?['arch'];
+    final String? archParam = argResults?['arch'];
     final String env = argResults?['env'] ?? 'pre';
-    Arch? arch = arches.where((element) => element.name == archName).firstOrNull;
 
-    if (platform != TargetPlatform.android) {
-      arch ??= arches.where((element) => element.same).first;
-      if (!arch.same && platform == TargetPlatform.linux) {
-        throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+    Arch? arch;
+    if (archParam == null) {
+      if (platform != TargetPlatform.android) {
+        arch = arches.firstWhere((element) => element.same);
       }
+    } else if (archParam == 'universal') {
+      if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
+        throw 'Invalid arch parameter!';
+      }
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
@@ -580,7 +586,7 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = '${archName ?? arch?.name}${compatible ? "-compatible" : ""}';
+    final String desc = '${archParam ?? arch?.name}${compatible ? "-compatible" : ""}';
 
     switch (platform) {
       case TargetPlatform.windows:
@@ -647,7 +653,7 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
