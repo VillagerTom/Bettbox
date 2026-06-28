@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart';
 
@@ -801,18 +802,40 @@ class BuildCommand extends Command {
     if (compatible && platform != TargetPlatform.windows && platform != TargetPlatform.linux) {
       throw '--compatible is only supported for windows and linux';
     }
+
+    // TODO: implement macOS universal builds once PR #226's lipo approach is
+    // fixed; the current code would only produce a single-arch core.
+    if (archName == 'universal' && platform == TargetPlatform.macos) {
+      throw UsageException(
+        '--arch universal is not currently implemented',
+        argParser.usage,
+      );
+    }
+
     final coreMode = platform == TargetPlatform.android ? CoreMode.lib : CoreMode.core;
     final String actualOut = out ?? (platform.buildable ? 'app' : 'core');
     Build.isDev = dev;
 
     await Build.ensureAssets();
 
-    Arch? arch = arches
-        .where((element) => element.name == archName)
-        .firstOrNull;
+    final String? archParam = archName;
 
-    if (platform != TargetPlatform.android) {
-      arch ??= arches.where((element) => element.same).first;
+    Arch? arch;
+    if (archParam == null) {
+      if (platform != TargetPlatform.android) {
+        arch = arches.firstWhereOrNull((element) => element.same);
+        if (arch == null) {
+          throw 'Unsupported host architecture '
+              '(supported: ${arches.map((e) => e.name).join(', ')})';
+        }
+      }
+    } else if (archParam == 'universal') {
+      if (platform != TargetPlatform.android && platform != TargetPlatform.macos) {
+        throw 'Invalid arch parameter!';
+      }
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
 
     if (ensure && actualOut != 'app') {
@@ -859,7 +882,7 @@ class BuildCommand extends Command {
 
     final String desc = platform == TargetPlatform.android
         ? ''
-        : '${archName ?? arch!.name}${compatible ? "-compatible" : ""}';
+        : '${archParam ?? arch!.name}${compatible ? "-compatible" : ""}';
 
     String appAssetSuffix = '';
     switch (platform) {
@@ -872,7 +895,7 @@ class BuildCommand extends Command {
       case TargetPlatform.linux:
         break;
       case TargetPlatform.android:
-        if (archName == 'universal') {
+        if (archParam == 'universal') {
           appAssetSuffix = 'android-universal.apk';
         } else if (arch == Arch.arm64) {
           appAssetSuffix = 'android-arm64-v8a.apk';
@@ -975,7 +998,7 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
