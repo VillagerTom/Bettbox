@@ -449,7 +449,6 @@ class BuildCommand extends Command {
     String args = '',
     required String env,
     required String suffix,
-    bool compatible = false,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
     final sentryArg = sentryDsn.isNotEmpty
@@ -461,18 +460,12 @@ class BuildCommand extends Command {
 
     final appDevArg = Build.isDev ? ' --build-dart-define=APP_DEV=true' : '';
 
-    final environment = Map<String, String>.from(Platform.environment);
-    if (compatible) {
-      environment['BETTBOX_COMPATIBLE_BUILD'] = '1';
-    }
-
     await Build.getDistributor();
     await Build.exec(
       name: name,
       Build.getExecutable(
         'flutter_distributor package --skip-clean --platform ${target.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg --build-dart-define=APP_ENV=$env$appDevArg',
       ),
-      environment: environment,
     );
   }
 
@@ -659,7 +652,6 @@ class BuildCommand extends Command {
           args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
           env: env,
           suffix: appAssetSuffix,
-          compatible: compatible,
         );
         return;
       case Target.linux:
@@ -680,7 +672,6 @@ class BuildCommand extends Command {
             args: ' --description $desc --build-target-platform $defaultTarget',
             env: env,
             suffix: currentSuffix,
-            compatible: compatible,
           );
         }
         return;
@@ -706,7 +697,6 @@ class BuildCommand extends Command {
           args: buildArgs,
           env: env,
           suffix: appAssetSuffix,
-          compatible: compatible,
         );
         return;
       case Target.macos:
@@ -718,7 +708,6 @@ class BuildCommand extends Command {
           args: ' --description $desc',
           env: env,
           suffix: appAssetSuffix,
-          compatible: compatible,
         );
         return;
     }
