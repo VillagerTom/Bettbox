@@ -644,7 +644,12 @@ class BuildCommand extends Command {
       if (arch == null) throw 'Invalid arch parameter!';
     }
 
-    final bool compatible = argResults?['compatible'] ?? false;
+    bool compatible = argResults?['compatible'] ?? false;
+    if (archParam == 'universal' && target == Target.macos) {
+      compatible = true; 
+      print('Warning: --compatible is forced for macOS universal build');
+    }
+
     final bool ensure = argResults?['ensure'] ?? false;
 
     if (ensure && out != 'app') {
