@@ -83,16 +83,137 @@
 ---
 ## 💻 توسعه، ساخت و انطباق UI
 
-نمونه ساخت بر روی پلتفرم ویندوز:
+### محیط مرجع
 
-* نیازمندی‌های سیستم: ویندوز ۱۰ به بالا
-* پیش‌نیازها: Git, Visual Studio, Flutter 3.47.x, Golang, Inno Setup, Rust
-```bash
-* flutter pub get (دریافت وابستگی‌ها)
-* dart .\setup.dart windows --arch amd64 --out core (تنها ساخت هسته Core)
-* dart .\setup.dart windows --arch amd64 --out app --compatible (نسخه سازگار اختیاری)
-* پس از اتمام، خروجی نهایی در پوشه `dist/` قرار می‌گیرد
+|    |نسخه|توضیحات|
+|----|----|---|
+|Flutter|3.47.7|≥3.47|
+|Go|1.25.x|1.24.x برای ساخت سازگار|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|28.2.13676358||
+|Rust|آخرین نسخه پایدار||
+
+### ساخت و بسته‌بندی
+
+#### Windows
+
+* حداقل نیازمندی: Windows 10 1809
+* Toolchain: Flutter, Golang, Cargo, Visual Studio ≥ 2022
+* بسته‌بندی exe: Inno Setup
+
+```powershell
+# ساخت و بسته‌بندی
+flutter pub get
+dart run build_runner build
+dart .\setup.dart windows
 ```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* کتابخانه‌های وابسته: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2(برای AppImage)
+* بسته‌بندی DEB: dpkg-deb
+* بسته‌بندی RPM: rpm, patchelf
+* بسته‌بندی AppImage: appimagetool, locate, libfuse2
+
+```bash
+# نصب وابستگی‌ها
+## به عنوان مثال در Ubuntu 24.04، در صورت نیاز نصب کنید
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev libayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# ساخت و بسته‌بندی
+## پارامتر --targets را در صورت نیاز با جداکننده "," تنظیم کنید
+flutter pub get
+dart run build_runner build
+dart setup.dart linux --targets=deb,rpm,appimage
+# فقط ساخت
+dart setup.dart linux --build-only
+```
+
+#### Mac OS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* بسته‌بندی: appdmg
+
+```zsh
+# نصب وابستگی‌ها
+npm install -g appdmg
+# ساخت و بسته‌بندی
+flutter pub get
+dart run build_runner build
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools(اختیاری: sdkmanager مستقل), Android SDK Platform-Tools, Android NDK
+
+1. پیکربندی محیط ساخت
+
+  * Android SDK, NDK and Tools
+
+    * پیکربندی با Android Studio
+
+       به [مستندات رسمی Flutter](https://docs.flutter.dev/platform-integration/android/setup) مراجعه کنید
+      
+    * نصب از خط فرمان (به عنوان مثال در لینوکس)
+
+      ```bash
+      # تنظیم متغیرهای محیطی
+      echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+      echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+      source ~/.bashrc
+
+      # نصب SDK، NDK، Tools
+      ## با استفاده از sdkmanager.py
+      sudo apt install sdkmanager
+      sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;28.2.13676358"
+
+      # پذیرش مجوزها
+      flutter doctor --android-licenses
+      ```
+  
+  * پیکربندی Keystore
+
+    1. یک Keystore جدید ایجاد کنید یا Keystore موجود را به `./android/app/keystore.jks` وارد کنید
+    2. (بدون Android Studio) فایل `./android/local.properties` را ایجاد یا باز کنید و پارامترهای زیر را اضافه کنید
+
+      ```properties
+      keyAlias=<نام مستعار کلید>
+      storePassword=<رمز Keystore>
+      keyPassword=<رمز کلید>
+      ```
+  * برای بررسی کامل بودن محیط ساخت، `flutter doctor` را اجرا کنید
+
+2. ساخت و بسته‌بندی
+
+  ```bash
+  flutter pub get
+  dart run build_runner build
+  dart setup.dart android --arch=universal
+  ```
+
+#### نکات و تذکرات
+
+1. نسخه فعلی flutter_distributor (v0.4.2) مسیر نصب Inno Setup را به صورت سخت‌کد شده (`C:\Program Files (x86)\Inno Setup 6`) دارد، حتماً مطمئن شوید که با دسترسی مدیر در مسیر پیش‌فرض نصب شده است
+2. برای ساخت برای [پردازنده‌های قدیمی](https://go.dev/wiki/MinimumRequirements#amd64) از پارامتر `--compatible` استفاده کنید
+3. برای مشاهده گزینه‌های خط فرمان بیشتر، `dart setup.dart help <platform>` را اجرا کنید
+
+### دیباگ (VS Code)
+
+به عنوان مثال در ویندوز
+
+1. مطمئن شوید core از قبل ساخته شده است
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. دستگاه هدف را متصل کرده و F5 را برای شروع دیباگ فشار دهید
 
 انطباق اسکریپت‌های سفارشی با UI:
 
