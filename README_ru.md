@@ -94,14 +94,137 @@
 
 ## 💻 Разработка и сборка
 
-Пример для Windows:
+### Эталонная среда
 
-* Вам понадобится устройство на базе Windows (система ≥ Windows 10)
-* Другие необходимые компоненты: Git, Visual Studio, Flutter 3.44.x, Golang, Inno Setup, Rust
-* `flutter pub get` (получить зависимости)
-* `dart .\setup.dart windows --arch amd64 --out core` (сборка только Core ядра)
-* `dart .\setup.dart windows --arch amd64 --out app --compatible` (опциональная совместимая версия)
-* После успешной сборки готовые файлы будут находиться в папке `dist/`
+|    |Версия|Примечания|
+|----|----|---|
+|Flutter|3.44.6|≥3.44|
+|Go|1.24.x|1.20.x для совместимой сборки|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|27.0.12077973<br>28.2.13676358|core<br>app|
+|Rust|Последняя стабильная||
+
+### Сборка и упаковка
+
+#### Windows
+
+* Минимальные требования: Windows 10 1809
+* Toolchain: Flutter, Golang, Cargo, Visual Studio ≥ 2022
+* Упаковка exe: Inno Setup
+
+```powershell
+# Сборка и упаковка
+flutter pub get
+dart run build_runner build -d
+dart .\setup.dart windows
+```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* Зависимости: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2 (для AppImage)
+* Упаковка DEB: dpkg-deb
+* Упаковка RPM: rpm, patchelf
+* Упаковка AppImage: appimagetool, locate, libfuse2
+
+```bash
+# Установка зависимостей
+## На примере Ubuntu 24.04, устанавливайте по необходимости
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev lbayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/Appimage/AppimageKit/releases/download/containuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# Сборка и упаковка
+## Укажите параметр --targets по необходимости, используйте "," для разделения
+flutter pub get
+dart run build_runner build -d
+dart setup.dart linux --targets=deb,rpm,appimage
+# Только сборка
+dart setup.dart linux --build-only
+```
+
+#### Mac OS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* Упаковка: appdmg
+
+```zsh
+# Установка зависимостей
+npm install appdmg
+# Сборка и упаковка
+flutter pub get
+dart run build_runner build -d
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools (опционально: отдельный sdkmanager), Android SDK Platform-Tools, Android NDK
+
+1. Настройка среды сборки
+
+  * Android SDK, NDK и Tools
+
+    * Настройка через Android Studio
+
+      См. [официальную документацию Flutter](https://docs.flutter.dev/platform-integration/android/setup)
+
+    * Установка из командной строки (на примере Linux)
+
+      ```bash
+      # Настройка переменных окружения
+      echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+      echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+      sourec ~/.bashrc
+
+      # Установка SDK, NDK, Tools
+      ## Используйте sdkmanager.py
+      sudo apt install sdkmanager
+      sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;27.0.12077973" "ndk;28.2.13676358"
+
+      # Принятие лицензий
+      flutter doctor --android-lincenses
+      ```
+
+  * Настройка Keystore
+
+    1. Создайте новый Keystore или импортируйте существующий в `./android/app/keystore.jks`
+    2. (без Android Studio) Создайте или откройте `./android/local.properties`, добавьте следующие параметры
+
+      ```properties
+      keyAlias=<ключ псевдоним>
+      storePassword=<пароль Keystore>
+      keyPassword=<пароль ключа>
+      ```
+  * Запустите `flutter doctor` для проверки целостности среды сборки
+
+2. Сборка и упаковка
+
+  ```bash
+  flutter pub get
+  dart run build-runner build -d
+  dart setup.dart android --arch=universal
+  ```
+
+#### Советы и примечания
+
+1. Текущая версия flutter_distributor (v0.4.2) содержит жестко заданный путь установки Inno Setup (`C:\Program Files (x86)\Inno Setup 6`), убедитесь, что Inno Setup установлен от имени администратора в каталог по умолчанию
+2. Используйте параметр `--compatible` для сборки под [старые CPU](https://go.dev/wiki/MinimumRequirements#amd64)
+3. Выполните `dart setup.dart help <platform>` для просмотра дополнительных опций командной строки
+
+### Отладка (VS Code)
+
+На примере Windows
+
+1. Убедитесь, что core предварительно собран
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. Подключите целевое устройство и нажмите F5 для начала отладки
 
 ---
 

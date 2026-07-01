@@ -94,14 +94,137 @@ Bettbox stands for: Better Experience, Out of the box.
 
 ## 💻 Development
 
-Example for Windows:
+### Reference Environment
 
-* You need a Windows device (system ≥ Windows 10)
-* Other required environment: Git, Visual Studio, Flutter 3.44.x, Golang, Inno Setup, Rust
-* `flutter pub get` (get dependencies)
-* `dart .\setup.dart windows --arch amd64 --out core` (only build Core)
-* `dart .\setup.dart windows --arch amd64 --out app --compatible` (optional compatible version)
-* Once built, the final artifacts are located in the `dist/` directory
+|     | Version | Notes              |
+|-----|---------|--------------------|
+|Flutter|3.44.6|≥3.44|
+|Go|1.24.x|1.20.x for compatible build|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|27.0.12077973<br>28.2.13676358|core<br>app|
+|Rust|Latest stable||
+
+### Build & Package
+
+#### Windows
+
+* Minimum requirement: Windows 10 1809
+* Toolchain: Flutter, Golang, Cargo, Visual Studio ≥ 2022
+* exe packaging: Inno Setup
+
+```powershell
+# Build and package
+flutter pub get
+dart run build_runner build -d
+dart .\setup.dart windows
+```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* Dependencies: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2 (for AppImage)
+* DEB packaging: dpkg-deb
+* RPM packaging: rpm, patchelf
+* AppImage packaging: appimagetool, locate, libfuse2
+
+```bash
+# Install dependencies
+## Ubuntu 24.04 example, install as needed
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev libayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# Build and package
+## Set --targets as needed, separated by ","
+flutter pub get
+dart run build_runner build -d
+dart setup.dart linux --targets=deb,rpm,appimage
+# Build only (no packaging)
+dart setup.dart linux --build-only
+```
+
+#### macOS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* Packaging: appdmg
+
+```zsh
+# Install dependencies
+npm install -g appdmg
+# Build and package
+flutter pub get
+dart run build_runner build -d
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools (optional: standalone sdkmanager), Android SDK Platform-Tools, Android NDK
+
+1. Configure build environment
+
+   * Android SDK, NDK and Tools
+
+     * Configure using Android Studio
+
+       See [Flutter official documentation](https://docs.flutter.dev/platform-integration/android/setup)
+
+     * Install from command line (Linux example)
+
+       ```bash
+       # Set environment variables
+       echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+       echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+       source ~/.bashrc
+
+       # Install SDK, NDK, Tools
+       ## Using sdkmanager
+       sudo apt install sdkmanager
+       sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;27.0.12077973" "ndk;28.2.13676358"
+
+       # Accept licenses
+       flutter doctor --android-licenses
+       ```
+
+   * Configure Keystore
+
+     1. Generate a new keystore or import an existing one to `./android/app/keystore.jks`
+     2. (Without Android Studio) Create or open `./android/local.properties`, add the following:
+
+        ```properties
+        keyAlias=<key alias>
+        storePassword=<keystore password>
+        keyPassword=<key password>
+        ```
+   * Run `flutter doctor` to verify build environment
+
+2. Build and package
+
+   ```bash
+   flutter pub get
+   dart run build_runner build -d
+   dart setup.dart android --arch=universal
+   ```
+
+#### Tips & Notices
+
+1. The current version of flutter_distributor (v0.4.2) hardcodes the Inno Setup installation path (`C:\Program Files (x86)\Inno Setup 6`). Make sure it is installed to the default directory with administrator privileges
+2. Use the `--compatible` flag to build for [older CPUs](https://go.dev/wiki/MinimumRequirements#amd64)
+3. Run `dart setup.dart help <platform>` for more command-line options
+
+### Debugging (VS Code)
+
+Windows example:
+
+1. Ensure core is pre-built
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. Connect the target device and press F5 to start debugging
 
 ---
 
