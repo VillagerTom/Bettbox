@@ -54,7 +54,7 @@ extension TargetExt on Target {
   }
 }
 
-enum CoreMode { core, lib }
+enum Mode { core, lib }
 
 enum Arch { amd64, arm64, arm }
 
@@ -279,12 +279,12 @@ class Build {
   }
 
   static Future<List<String>> buildCore({
-    required CoreMode mode,
+    required Mode mode,
     required Target target,
     Arch? arch,
     bool compatible = false,
   }) async {
-    final isLib = mode == CoreMode.lib;
+    final isLib = mode == Mode.lib;
 
     final items = buildItems.where((element) {
       return element.target == target && (arch == null || element.arch == arch);
@@ -838,7 +838,7 @@ class BuildCommand extends Command {
       );
     }
 
-    final coreMode = target == Target.android ? CoreMode.lib : CoreMode.core;
+    final mode = target == Target.android ? Mode.lib : Mode.core;
     final String actualOut = out ?? (target.buildable ? 'app' : 'core');
     Build.isDev = dev;
 
@@ -883,7 +883,7 @@ class BuildCommand extends Command {
     final corePaths = await Build.buildCore(
       target: target,
       arch: arch,
-      mode: coreMode,
+      mode: mode,
       compatible: compatible,
     );
 
