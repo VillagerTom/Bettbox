@@ -17,20 +17,10 @@ extension TargetExt on Target {
     return name;
   }
 
-  bool get same {
-    if (this == Target.android) {
-      return true;
-    }
-    if (Platform.isWindows && this == Target.windows) {
-      return true;
-    }
-    if (Platform.isLinux && this == Target.linux) {
-      return true;
-    }
-    if (Platform.isMacOS && this == Target.macos) {
-      return true;
-    }
-    return false;
+  bool get same => name == Platform.operatingSystem;
+
+  bool get buildable {
+    return same || this == Target.android;
   }
 
   String get dynamicLibExtensionName {
@@ -67,16 +57,132 @@ enum Mode { core, lib }
 
 enum Arch { amd64, arm64, arm }
 
+extension ArchExt on Arch {
+  Map<String, String> get archMap {
+    switch (Platform.operatingSystem) {
+      case 'windows':
+        return {
+          'AMD64': 'amd64',
+          'x86': 'amd32',
+          'ARM64': 'arm64',
+          'ARM': 'arm'
+        };
+      case 'linux' || 'android':
+        return {
+          'x86_64': 'amd64',
+          'i386': 'amd32',
+          'i486': 'amd32',
+          'i586': 'amd32',
+          'i686': 'amd32',
+          'aarch64': 'arm64',
+          'armv5l': 'arm',
+          'armv6l': 'arm',
+          'armv7l': 'arm'
+        };
+      case 'macos':
+        return {
+          'x86_64': 'amd64',
+          'arm64': 'arm64',
+          'arm64e': 'arm64'
+        };
+      default:
+        throw 'Unsupported platform!';
+    }
+  }
+
+  bool get same {
+    final String hostArchName;
+    if (Platform.isWindows) {
+      hostArchName = Platform.environment['PROCESSOR_ARCHITECTURE']!;
+    } else {
+      var info = Process.runSync('uname', ['-m']);
+      hostArchName = info.stdout.toString().trim();
+    }
+    final hostArch = archMap[hostArchName] ?? hostArchName;
+    return name == hostArch ? true : false;
+  }
+}
+
 class BuildItem {
   Target target;
-  Arch? arch;
+  Arch arch;
   String? archName;
 
-  BuildItem({required this.target, this.arch, this.archName});
+  BuildItem({required this.target, required this.arch, this.archName});
 
   @override
   String toString() {
     return 'BuildLibItem{target: $target, arch: $arch, archName: $archName}';
+  }
+}
+
+Future<void> checkDeps({
+  List<String>? commands,
+  Map<String, String>? devLibs,
+  Map<String, String>? rtLibs,
+  List<String>? files,
+  List<String>? ndks,
+}) async {
+  final missing = <String>[];
+
+  if (devLibs != null && devLibs.isNotEmpty) {
+    final pkgConfigExists = (await Process.run('which', ['pkg-config'])).exitCode == 0;
+    if (!pkgConfigExists) {
+      missing.add('pkg-config');
+    } else {
+      for (final entry in devLibs.entries) {
+        final result = await Process.run('pkg-config', ['--exists', entry.value]);
+        if (result.exitCode != 0) missing.add(entry.key);
+      }
+    }
+  }
+
+  if (rtLibs != null && rtLibs.isNotEmpty) {
+    for (final entry in rtLibs.entries) {
+      final result = await Process.run('sh', ['-c', 'ldconfig -p | grep ${entry.value}']);
+      if (result.exitCode != 0) missing.add(entry.key);
+    }
+  }
+
+  if (ndks != null && ndks.isNotEmpty) {
+    final sdkmanager = join(Platform.environment['ANDROID_HOME']!, 'cmdline-tools', 'latest', 'bin', 'sdkmanager');
+    final cmdlineToolsExist = File(sdkmanager).existsSync();
+    if (!cmdlineToolsExist) {
+      missing.add('Android SDK Command-line Tools');
+    } else {
+      for (final ndkVersion in ndks) {
+        final result = await Process.run(sdkmanager, ['--list_installed']);
+        final pattern = RegExp('^\\s.${RegExp.escape('ndk;$ndkVersion')}', multiLine: true);
+        final installed = pattern.hasMatch(result.stdout);
+        if (!installed) {
+          missing.add('Android NDK $ndkVersion');
+        }
+      }
+    }
+  }
+
+  if (commands != null && commands.isNotEmpty) {
+    for (final cmd in commands) {
+      final result = Platform.isWindows
+          ? await Process.run('where.exe', [cmd])
+          : await Process.run('which', [cmd]);
+      if (result.exitCode != 0) {
+        missing.add(cmd);
+      }
+    }
+  }
+
+  if (files != null && files.isNotEmpty) {
+    for (final filePath in files) {
+      if (!File(filePath).existsSync()) {
+        missing.add(basename(filePath));
+      }
+    }
+  }
+
+  if (missing.isNotEmpty) {
+    throw 'Missing required dependencies: ${missing.join(", ")}. '
+        'Please install them first. See README for details.';
   }
 }
 
@@ -112,26 +218,6 @@ class Build {
   static String get _servicesDir => join(current, 'services', 'helper');
 
   static String get distPath => join(current, 'dist');
-
-  static String _getCc(BuildItem buildItem) {
-    final environment = Platform.environment;
-    if (buildItem.target == Target.android) {
-      final ndk = environment['ANDROID_NDK'];
-      assert(ndk != null);
-      final prebuiltDir = Directory(
-        join(ndk!, 'toolchains', 'llvm', 'prebuilt'),
-      );
-      final prebuiltDirList = prebuiltDir.listSync();
-      final map = {
-        'armeabi-v7a': 'armv7a-linux-androideabi21-clang',
-        'arm64-v8a': 'aarch64-linux-android21-clang',
-        'x86': 'i686-linux-android21-clang',
-        'x86_64': 'x86_64-linux-android21-clang',
-      };
-      return join(prebuiltDirList.first.path, 'bin', map[buildItem.archName]);
-    }
-    return 'gcc';
-  }
 
   static String getTags(BuildItem buildItem) {
     final baseTags = 'with_gvisor';
@@ -185,8 +271,7 @@ class Build {
     final isLib = mode == Mode.lib;
 
     final items = buildItems.where((element) {
-      return element.target == target &&
-          (arch == null ? true : element.arch == arch);
+      return element.target == target && (arch == null || element.arch == arch);
     }).toList();
 
     final List<String> corePaths = [];
@@ -207,9 +292,7 @@ class Build {
 
       final Map<String, String> env = {};
       env['GOOS'] = item.target.os;
-      if (item.arch != null) {
-        env['GOARCH'] = item.arch!.name;
-      }
+      env['GOARCH'] = item.arch.name;
       if (item.arch == Arch.amd64 &&
           (item.target == Target.windows ||
               item.target == Target.linux ||
@@ -218,14 +301,34 @@ class Build {
       }
       if (isLib) {
         env['CGO_ENABLED'] = '1';
-        env['CC'] = _getCc(item);
         env['CFLAGS'] = '-O3 -Werror';
+        if (item.target == Target.android) {
+          var ndkPath = Platform.environment['ANDROID_NDK'];
+          if (ndkPath == null) {
+            const ndkVersion = '27.0.12077973';
+            final androidHome = Platform.environment['ANDROID_HOME']!;
+            await checkDeps(ndks: [ndkVersion]);
+            ndkPath = join(androidHome, 'ndk', ndkVersion);
+          }
+          final prebuiltDir = Directory(join(ndkPath, 'toolchains', 'llvm', 'prebuilt'));
+          final map = {
+            'armeabi-v7a': 'armv7a-linux-androideabi21-clang',
+            'arm64-v8a': 'aarch64-linux-android21-clang',
+            'x86': 'i686-linux-android21-clang',
+            'x86_64': 'x86_64-linux-android21-clang',
+          };
+          env['CC'] = join(prebuiltDir.listSync().first.path, 'bin', map[item.archName]);
+        } else {
+          env['CC'] = 'gcc';
+          await checkDeps(commands: ['gcc']);
+        }
       } else {
         env['CGO_ENABLED'] = '0';
       }
 
       final buildTags = getTags(item);
 
+      await checkDeps(commands: ['go']);
       await exec(
         ['go', 'mod', 'tidy'],
         name: 'go mod tidy',
@@ -327,40 +430,51 @@ class BuildCommand extends Command {
   Target target;
 
   BuildCommand({required this.target}) {
-    if (target == Target.android || target == Target.linux) {
-      argParser.addOption(
-        'arch',
-        valueHelp: [
-          if (target != Target.android) 'auto',
-          ...arches.map((e) => e.name),
-        ].join(','),
-        help: 'The $name build desc',
-      );
-    } else {
-      argParser.addOption(
-        'arch',
-        valueHelp: ['auto', ...arches.map((e) => e.name)].join(','),
-        help: 'The $name build archName',
+    argParser.addOption(
+      'arch',
+      abbr: 'a',
+      allowed: target == Target.android || target == Target.macos
+        ? [...arches.map((e) => e.name), 'universal']
+        : arches.map((e) => e.name),
+      help: 'The architecture of $name build; omit this to select '
+        '${target != Target.android ? "the host" : "every"} architecture',
+    );
+    if (target == Target.linux) {
+      argParser.addMultiOption(
+        'targets',
+        abbr: 't',
+        allowed: ['deb', 'rpm', 'appimage', 'zip'],
+        help: 'Linux package formats (multiple selections, seperated by ",")',
       );
     }
     argParser.addOption(
       'out',
-      valueHelp: [if (target.same) 'app', 'core'].join(','),
-      help: 'The $name build arch',
+      abbr: 'o',
+      allowed: [if (target.buildable) 'app', 'core'],
+      help: 'Build the full app or only the core',
+      defaultsTo: target.buildable ? 'app' : 'core',
     );
     argParser.addOption(
       'env',
-      valueHelp: ['pre', 'stable'].join(','),
-      help: 'The $name build env',
+      abbr: 'e',
+      allowed: ['pre', 'stable'],
+      help: 'The value of dart-define APP_ENV, used to identify the release channel',
+      defaultsTo: 'pre',
     );
     argParser.addFlag(
       'compatible',
-      help: 'Build with GOAMD64=v2 for broader compatibility on amd64',
+      abbr: 'C',
+      help: 'Build with GOAMD64=v1 for broader compatibility on amd64',
     );
     argParser.addFlag('dev', help: 'Build debug/dev variant');
     argParser.addFlag(
       'ensure',
       help: 'Skip build if output artifact already exists',
+    );
+    argParser.addFlag(
+      'build-only',
+      abbr: 'B',
+      help: 'Skip packaging the app with flutter_distributor'
     );
   }
 
@@ -371,43 +485,9 @@ class BuildCommand extends Command {
   String get name => target.name;
 
   List<Arch> get arches => Build.buildItems
-      .where((element) => element.target == target && element.arch != null)
-      .map((e) => e.arch!)
+      .where((element) => element.target == target)
+      .map((e) => e.arch)
       .toList();
-
-  Future<void> _getLinuxDependencies(Arch arch) async {
-    await Build.exec(Build.getExecutable('sudo apt update -y'));
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y ninja-build libgtk-3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt install -y libayatana-appindicator3-dev'),
-    );
-    await Build.exec(
-      Build.getExecutable('sudo apt-get install -y libkeybinder-3.0-dev'),
-    );
-    await Build.exec(Build.getExecutable('sudo apt install -y locate'));
-    if (arch == Arch.amd64) {
-      await Build.exec(
-        Build.getExecutable('sudo apt install -y rpm patchelf libfuse2'),
-      );
-
-      final downloadName = arch == Arch.amd64 ? 'x86_64' : 'aarch64';
-      await Build.exec(
-        Build.getExecutable(
-          'wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-$downloadName.AppImage',
-        ),
-      );
-      await Build.exec(Build.getExecutable('chmod +x appimagetool'));
-      await Build.exec(
-        Build.getExecutable('sudo mv appimagetool /usr/local/bin/'),
-      );
-    }
-  }
-
-  Future<void> _getMacosDependencies() async {
-    await Build.exec(Build.getExecutable('npm install -g appdmg'));
-  }
 
   Future<void> _setMacOSImpeller(bool enable) async {
     final infoPlistPath = 'macos/Runner/Info.plist';
@@ -447,52 +527,47 @@ class BuildCommand extends Command {
     required Target target,
     required String targets,
     String args = '',
-    required String env,
+    required String appEnv,
     required String suffix,
     bool compatible = false,
+    final bool buildOnly = false,
   }) async {
     final sentryDsn = Platform.environment['SENTRY_DSN'] ?? '';
-    final sentryArg = sentryDsn.isNotEmpty
-        ? ' --build-dart-define=SENTRY_DSN=$sentryDsn'
-        : '';
-    final suffixArg = suffix.isNotEmpty
-        ? ' --build-dart-define=APP_ASSET_SUFFIX=$suffix'
-        : '';
+    String sentryArg = '';
+    if (sentryDsn.isNotEmpty) {
+      sentryArg = buildOnly
+        ? ' --dart-define=SENTRY_DSN=$sentryDsn'
+        : ' --build-dart-define=SENTRY_DSN=$sentryDsn';
+    }
+    String suffixArg = '';
+    if (suffix.isNotEmpty) {
+      suffixArg = buildOnly
+        ? ' --dart-define=APP_ASSET_SUFFIX=$suffix'
+        : ' --build-dart-define=APP_ASSET_SUFFIX=$suffix';
+    }
 
-    final appDevArg = Build.isDev ? ' --build-dart-define=APP_DEV=true' : '';
+    String appDevArg = '';
+    if (Build.isDev) {
+      appDevArg = buildOnly
+        ? ' --dart-define=APP_DEV=true'
+        : ' --build-dart-define=APP_DEV=true';
+    }
 
     final environment = Map<String, String>.from(Platform.environment);
     if (compatible) {
       environment['BETTBOX_COMPATIBLE_BUILD'] = '1';
     }
 
-    await Build.getDistributor();
+    if (!buildOnly) await Build.getDistributor();
     await Build.exec(
-      name: name,
+      name: description,
       Build.getExecutable(
-        'flutter_distributor package --skip-clean --platform ${target.name} --targets $targets --flutter-build-args=verbose$args$sentryArg$suffixArg --build-dart-define=APP_ENV=$env$appDevArg',
+        buildOnly
+          ? 'flutter build ${target == Target.android ? "apk" : target.name} --release --verbose$args$sentryArg$suffixArg --dart-define=APP_ENV=$appEnv$appDevArg'
+          : 'flutter_distributor package --skip-clean --platform ${target.name} --targets $targets --flutter-build-args=verbose$args$sentryArg --build-dart-define=APP_ENV=$appEnv$appDevArg',
       ),
       environment: environment,
     );
-  }
-
-  Future<String?> get systemArch async {
-    if (Platform.isWindows) {
-      return Platform.environment['PROCESSOR_ARCHITECTURE'];
-    } else if (Platform.isLinux || Platform.isMacOS) {
-      final result = await Process.run('uname', ['-m']);
-      return result.stdout.toString().trim();
-    }
-    return null;
-  }
-
-  String? _mapHostArch(String? hostArch) {
-    if (hostArch == null) return null;
-    final lower = hostArch.toLowerCase();
-    if (lower == 'amd64' || lower == 'x86_64' || lower == 'x64') return 'amd64';
-    if (lower == 'arm64' || lower == 'aarch64') return 'arm64';
-    if (lower.startsWith('arm')) return 'arm';
-    return null;
   }
 
   List<String> _expectedOutputs(Arch? arch) {
@@ -570,35 +645,33 @@ class BuildCommand extends Command {
   @override
   Future<void> run() async {
     final mode = target == Target.android ? Mode.lib : Mode.core;
-    final String out = argResults?['out'] ?? (target.same ? 'app' : 'core');
-    final env = argResults?['env'] ?? 'pre';
+    final String out = argResults?['out'] ?? (target.buildable ? 'app' : 'core');
+    final String? archParam = argResults?['arch'];
+    final String appEnv = argResults?['env'] ?? 'pre';
     Build.isDev = argResults?['dev'] ?? false;
 
-    String? archName = argResults?['arch'];
-    if (archName == 'auto') {
-      if (target == Target.android) {
-        throw '--arch auto is not supported for android; choose the device ABI explicitly';
+    Arch? arch;
+    if (archParam == null) {
+      if (target != Target.android) {
+        arch = arches.firstWhere((element) => element.same);
       }
-      if (!target.same) {
-        throw '--arch auto can only be used for the current host platform';
+    } else if (archParam == 'universal') {
+      if (target != Target.android && target != Target.macos) {
+        throw 'Invalid arch parameter!';
       }
-      archName = _mapHostArch(await systemArch);
-      if (archName == null) {
-        throw 'Unable to detect host architecture';
-      }
-    }
-
-    final currentArches = arches
-        .where((element) => element.name == archName)
-        .toList();
-    final arch = currentArches.isEmpty ? null : currentArches.first;
-
-    if (arch == null && target != Target.android) {
-      throw 'Invalid arch parameter';
+    } else {
+      arch = arches.where((element) => element.name == archParam).firstOrNull;
+      if (arch == null) throw 'Invalid arch parameter!';
     }
 
     final bool compatible = argResults?['compatible'] ?? false;
     final bool ensure = argResults?['ensure'] ?? false;
+    bool buildOnly = argResults?['build-only'] ?? false;
+
+    if (target == Target.android && buildOnly) {
+      print('Warning: Ignored --build-only.');
+      buildOnly = false;
+    }
 
     if (ensure && out != 'app') {
       if (_outputsAreFresh(arch)) {
@@ -614,6 +687,10 @@ class BuildCommand extends Command {
       compatible: compatible,
     );
 
+    if (out == 'app' && !target.buildable) {
+      print('Platform incompatible, core built only!');
+      return;
+    }
     if (out != 'app') {
       if (target == Target.windows) {
         final token = await Build.calcSha256(corePaths.first);
@@ -622,7 +699,9 @@ class BuildCommand extends Command {
       return;
     }
 
-    final String desc = compatible ? '$archName-compatible' : (archName ?? '');
+    final String desc = target == Target.android
+        ? ''
+        : '${archParam ?? arch!.name}${compatible ? "-compatible" : ""}';
 
     String appAssetSuffix = '';
     switch (target) {
@@ -635,7 +714,7 @@ class BuildCommand extends Command {
       case Target.linux:
         break;
       case Target.android:
-        if (archName == 'universal') {
+        if (archParam == 'universal') {
           appAssetSuffix = 'android-universal.apk';
         } else if (arch == Arch.arm64) {
           appAssetSuffix = 'android-arm64-v8a.apk';
@@ -649,38 +728,83 @@ class BuildCommand extends Command {
 
     switch (target) {
       case Target.windows:
+        if (!arch!.same) {
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
+
+        await checkDeps(
+          commands: ['cargo'],
+          files: buildOnly ? null : [r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'],
+        );
         final token = target != Target.android
             ? await Build.calcSha256(corePaths.first)
             : null;
-        Build.buildHelper(target, token!);
-        _buildDistributor(
+        await Build.buildHelper(target, token!);
+        await _buildDistributor(
           target: target,
           targets: 'exe',
-          args: ' --description $desc --build-dart-define=CORE_SHA256=$token',
-          env: env,
+          args: buildOnly
+              ? ' --dart-define=CORE_SHA256=$token'
+              : ' --description $desc --build-dart-define=CORE_SHA256=$token',
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
+          buildOnly: buildOnly,
         );
         return;
       case Target.linux:
+        if (!arch!.same) {
+          throw 'Corss-build to $name ${arch.name} target is not currently supported!';
+        }
+
+        final validTargets = ['deb', 'rpm', 'appimage', 'zip'];
+        final targets = argResults?['targets'] ?? <String>[];
+        if (!buildOnly) {
+          if (targets.isEmpty) {
+            throw 'Invalid targets parameter';
+          }
+          final invalidTargets = targets.where((t) => !validTargets.contains(t)).toList();
+          if (invalidTargets.isNotEmpty) {
+            throw 'Invalid targets parameter: ${invalidTargets.join(', ')}';
+          }
+        }
+
+        final requiredCmds = ['clang', 'cmake', 'ninja'];
+        Map<String, String> requiredRtLibs = {};
+        if (targets.contains('deb')) requiredCmds.add('dpkg-deb');
+        if (targets.contains('rpm')) requiredCmds.addAll(['rpm', 'patchelf']);
+        if (targets.contains('appimage')) {
+          requiredCmds.addAll(['appimagetool', 'locate']);
+          requiredRtLibs.addAll({'libfuse2': 'libfuse.so.2'});
+        }
+        await checkDeps(
+          commands: requiredCmds,
+          devLibs: {
+            'gtk3': 'gtk+-3.0',
+            'libayatana-appindicator': 'ayatana-appindicator3-0.1',
+            'keybinder-3.0': 'keybinder-3.0',
+            'libcurl': 'libcurl',
+          },
+          rtLibs: requiredRtLibs,
+        );
+
         final targetMap = {Arch.arm64: 'linux-arm64', Arch.amd64: 'linux-x64'};
-        final targets = [
-          'deb',
-          if (arch == Arch.amd64) 'appimage',
-          if (arch == Arch.amd64) 'rpm',
-        ];
         final defaultTarget = targetMap[arch];
-        await _getLinuxDependencies(arch!);
-        for (final t in targets) {
+
+        for (final t in targets.isEmpty ? [''] : targets) {
           final ext = t == 'appimage' ? 'AppImage' : t;
           final currentSuffix = 'linux-$desc.$ext';
+
           await _buildDistributor(
             target: target,
             targets: t,
-            args: ' --description $desc --build-target-platform $defaultTarget',
-            env: env,
+            args: buildOnly
+                ? ' --target-platform $defaultTarget' 
+                : ' --description $desc --build-target-platform $defaultTarget',
+            appEnv: appEnv,
             suffix: currentSuffix,
             compatible: compatible,
+            buildOnly: buildOnly,
           );
         }
         return;
@@ -696,29 +820,30 @@ class BuildCommand extends Command {
             .map((e) => targetMap[e])
             .toList();
 
-        final buildArgs = archName == 'universal'
+        final buildArgs = archParam == 'universal'
             ? ' --build-target-platform ${defaultTargets.join(",")} --description universal'
             : ',split-per-abi --build-target-platform ${defaultTargets.join(",")}';
 
-        _buildDistributor(
+        await _buildDistributor(
           target: target,
           targets: 'apk',
           args: buildArgs,
-          env: env,
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
         );
         return;
       case Target.macos:
-        await _getMacosDependencies();
+        if (!buildOnly) await checkDeps(commands: ['appdmg']);
         await _setMacOSImpeller(!compatible);
-        _buildDistributor(
+        await _buildDistributor(
           target: target,
           targets: 'dmg',
-          args: ' --description $desc',
-          env: env,
+          args: buildOnly ? '' : ' --description $desc',
+          appEnv: appEnv,
           suffix: appAssetSuffix,
           compatible: compatible,
+          buildOnly: buildOnly,
         );
         return;
     }

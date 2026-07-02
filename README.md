@@ -102,11 +102,136 @@ ArchLinux: yay -S bettbox-bin 或 paru -S bettbox-bin
 
 ##  开发构建
 
-以Windows为例：
+### 参考环境
 
-* 你需要一台Windows设备（≥Windows 10）
-* 必要的软件依赖：Visual Studio，Flutter SDK≥3.44，Golang，Inno Setup，Rust
-* dart .\setup.dart windows --arch amd64 --compatible(可选兼容版本)
+|    |版本|备注|
+|----|----|---|
+|Flutter|3.44.2|>=3.44|
+|Go|1.24.x|1.20.x for compatible build|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|27.0.12077973<br>28.2.13676358|core<br>app|
+|Rust|Latest stable||
+
+### 构建与打包
+
+#### Windows
+
+* Toolchain: Flutter, Golang, Cargo, Visual Studio >= 2022
+* exe 打包: Inno Setup
+ 
+```powershell
+# 构建并打包
+flutter pub get
+dart run build_runner build -d
+dart .\setup.dart windows
+```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* 依赖库: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2(for AppImage)
+* DEB 打包: dpkg-deb
+* RPM 打包: rpm, patchelf
+* AppImage 打包: appimagetool, locate, libfuse2
+
+```bash
+# 安装依赖
+## 以 Ubuntu 24.04 为例, 按需安装
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev lbayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/Appimage/AppimageKit/releases/download/containuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# 构建并打包
+## 按需填写 --targets 参数，使用 "," 分隔
+flutter pub get
+dart run build_runner build -d
+dart setup.dart linux --targets=deb,rpm,appimage
+# 仅构建
+dart setup.dart linux --build-only
+```
+
+#### Mac OS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* 打包: appdmg
+
+```zsh
+# 安装依赖
+npm install appdmg
+# 构建并打包
+flutter pub get
+dart run build_runner build -d
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools(optional: independent sdkmanager), Android SDK Platform-Tools, Android NDK
+
+1. 配置构建环境
+
+  * Android SDK, NDK and Tools
+
+    * 使用 Android Studio 配置
+
+      参见 [Flutter 官方文档](https://docs.flutter.dev/platform-integration/android/setup)
+      
+    * 从命令行安装 (以 Linux 平台为例)
+
+      ```bash
+      # 配置环境变量
+      echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+      echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+      sourec ~/.bashrc
+
+      # 安装 SDK, NDK, Tools
+      ## 使用 sdkmanager.py
+      sudo apt install sdkmanager
+      sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;27.0.12077973" "ndk;28.2.13676358"
+
+      # 接受许可证
+      flutter doctor --android-lincenses
+      ```
+  
+  * 配置 Keystore
+
+    1. 生成新的 Keystore 或将已有 Keystore 导入至 `./android/app/keystore.jks`
+    2. (无 Android Studio) 新建或打开 `./android/local.properties`, 添加以下参数
+
+      ```properties
+      keyAlias=<密钥别名>
+      storePassword=<Keystore密码>
+      keyPassword=<密钥密码>
+      ```
+  * 运行 `flutter doctor` 检查构建环境完整性
+
+2. 构建并打包
+
+  ```bash
+  flutter pub get
+  dart run build-runner build -d
+  dart setup.dart android --arch=universal
+  ```
+
+#### Tips & Notice
+
+1. 当前版本 flutter_distributor (v0.4.2) 硬编码了 Inno Setup 的安装路径 (`C:\Program Files (x86)\Inno Setup 6`), 务必以管理员权限安装至默认目录
+2. 使用 `--compatible` 参数为[旧 CPU](https://go.dev/wiki/MinimumRequirements#amd64) 构建
+3. 运行 `dart setup.dart help <platform>` 查看更多命令行选项
+
+### 调试 (VS Code)
+
+以 Windows 为例
+
+1. 确保 core 已预先构建
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. 连接目标设备，按 F5 开始调试
 
 ---
 
