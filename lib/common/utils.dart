@@ -176,7 +176,7 @@ class Utils {
     }
 
     if (system.isLinux && isStart) {
-      return 'assets/images/icon_monochrome.svg';
+      return 'bettbox-symbolic';
     }
 
     final suffix = system.isWindows ? 'ico' : 'png';
