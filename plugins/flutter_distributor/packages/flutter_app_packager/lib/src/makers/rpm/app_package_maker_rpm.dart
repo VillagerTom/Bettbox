@@ -136,6 +136,24 @@ class AppPackageMakerRPM extends AppPackageMaker {
       }
     }
 
+    if (makeConfig.iconsSymbolic != null &&
+        makeConfig.iconsSymbolic!.isNotEmpty) {
+      for (final icon in makeConfig.iconsSymbolic!) {
+        final iconFile = File(icon.source);
+        if (!iconFile.existsSync()) {
+          throw MakeError(
+            "provided symbolic icon ${icon.source} path wasn't found",
+          );
+        }
+        await iconFile.copy(
+          path.join(
+            buildPath,
+            icon.name + path.extension(icon.source),
+          ),
+        );
+      }
+    }
+
     // create & write the files got from makeConfig
     final specFile = File(path.join(specsPath, '${makeConfig.appName}.spec'));
     final desktopEntryFile =

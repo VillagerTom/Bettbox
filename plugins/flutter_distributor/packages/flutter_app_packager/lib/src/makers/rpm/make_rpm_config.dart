@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_app_packager/src/api/app_package_maker.dart';
+import 'package:flutter_app_packager/src/api/symbolic_icon.dart';
 
 class MakeRPMConfig extends MakeConfig {
   MakeRPMConfig({
@@ -34,6 +35,7 @@ class MakeRPMConfig extends MakeConfig {
     this.defattr,
     this.attr,
     this.changelog,
+    this.iconsSymbolic,
   });
 
   factory MakeRPMConfig.fromJson(Map<String, dynamic> json) {
@@ -66,6 +68,7 @@ class MakeRPMConfig extends MakeConfig {
       defattr: json['defattr'] as String?,
       attr: json['attr'] as String?,
       changelog: json['changelog'] as String?,
+      iconsSymbolic: SymbolicIcon.fromJsonList(json['icons_symbolic']),
     );
   }
 
@@ -99,6 +102,7 @@ class MakeRPMConfig extends MakeConfig {
   String? defattr;
   String? attr;
   String? changelog;
+  List<SymbolicIcon>? iconsSymbolic;
 
   @override
   Map<String, dynamic> toJson() {
@@ -127,10 +131,15 @@ class MakeRPMConfig extends MakeConfig {
             'mkdir -p %{buildroot}%{_datadir}/%{name}',
             'mkdir -p %{buildroot}%{_datadir}/applications',
             'mkdir -p %{buildroot}%{_datadir}/pixmaps',
+            if (iconsSymbolic != null && iconsSymbolic!.isNotEmpty)
+              'mkdir -p %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps',
             'cp -r %{name}/* %{buildroot}%{_datadir}/%{name}',
             'ln -s %{_datadir}/%{name}/%{name} %{buildroot}%{_bindir}/%{name}',
             'cp -r %{name}.desktop %{buildroot}%{_datadir}/applications',
             'cp -r %{name}.png %{buildroot}%{_datadir}/pixmaps',
+            if (iconsSymbolic != null && iconsSymbolic!.isNotEmpty)
+              for (final icon in iconsSymbolic!)
+                'cp -r %{name}/${icon.name}${icon.source.substring(icon.source.lastIndexOf('.'))} %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/',
             'update-mime-database %{_datadir}/mime &> /dev/null || :',
           ].join('\n'),
           '%postun': ['update-mime-database %{_datadir}/mime &> /dev/null || :']
@@ -139,6 +148,8 @@ class MakeRPMConfig extends MakeConfig {
             '%{_bindir}/%{name}',
             '%{_datadir}/%{name}',
             '%{_datadir}/applications/%{name}.desktop',
+            if (iconsSymbolic != null && iconsSymbolic!.isNotEmpty)
+              '%{_datadir}/icons/hicolor/symbolic/apps',
           ].join('\n'),
         }..removeWhere((key, value) => value == null),
         'inline-body': {
