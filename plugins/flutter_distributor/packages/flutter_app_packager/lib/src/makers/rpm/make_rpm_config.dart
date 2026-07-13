@@ -139,7 +139,7 @@ class MakeRPMConfig extends MakeConfig {
             'cp -r %{name}.png %{buildroot}%{_datadir}/pixmaps',
             if (iconsSymbolic != null && iconsSymbolic!.isNotEmpty)
               for (final icon in iconsSymbolic!)
-                'cp -r %{name}/${icon.name}${icon.source.substring(icon.source.lastIndexOf('.'))} %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/',
+                'cp -r ${icon.name}${icon.source.substring(icon.source.lastIndexOf('.'))} %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/',
             'update-mime-database %{_datadir}/mime &> /dev/null || :',
           ].join('\n'),
           '%postun': ['update-mime-database %{_datadir}/mime &> /dev/null || :']
