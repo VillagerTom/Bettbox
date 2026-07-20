@@ -97,14 +97,137 @@ Bettboxの意味：Better Experience, Out of the box（優れた体験を、イ�
 
 ## 💻 開発とビルド
 
-Windowsを例にとると：
+### 参考環境
 
-* Windows端末が必要です（OSバージョン ≥ Windows 10）
-* その他の必要な環境：Git, Visual Studio, Flutter 3.44.x, Golang, Inno Setup, Rust
-* `flutter pub get` (依存関係の取得)
-* `dart .\setup.dart windows --arch amd64 --out core` (Coreコアのビルドのみ)
-* `dart .\setup.dart windows --arch amd64 --out app --compatible` (互換バージョンのビルド、オプション)
-* ビルド完了後、生成物は `dist/` ディレクトリに保存されます。
+|    |バージョン|備考|
+|----|----|---|
+|Flutter|3.44.6|≥3.44|
+|Go|1.24.x|互換ビルドは1.20.x|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|27.0.12077973<br>28.2.13676358|core<br>app|
+|Rust|Latest stable||
+
+### ビルドとパッケージング
+
+#### Windows
+
+* 最低要件: Windows 10 1809
+* Toolchain: Flutter, Golang, Cargo, Visual Studio ≥ 2022
+* exe パッケージング: Inno Setup
+ 
+```powershell
+# ビルドしてパッケージング
+flutter pub get
+dart run build_runner build -d
+dart .\setup.dart windows
+```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* 依存ライブラリ: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2(AppImage用)
+* DEB パッケージング: dpkg-deb
+* RPM パッケージング: rpm, patchelf
+* AppImage パッケージング: appimagetool, locate, libfuse2
+
+```bash
+# 依存関係のインストール
+## Ubuntu 24.04 を例に、必要に応じてインストール
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev lbayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/Appimage/AppimageKit/releases/download/containuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# ビルドしてパッケージング
+## 必要に応じて --targets パラメータを指定し、"," で区切る
+flutter pub get
+dart run build_runner build -d
+dart setup.dart linux --targets=deb,rpm,appimage
+# ビルドのみ
+dart setup.dart linux --build-only
+```
+
+#### Mac OS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* パッケージング: appdmg
+
+```zsh
+# 依存関係のインストール
+npm install appdmg
+# ビルドしてパッケージング
+flutter pub get
+dart run build_runner build -d
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools(optional: independent sdkmanager), Android SDK Platform-Tools, Android NDK
+
+1. ビルド環境の設定
+
+  * Android SDK, NDK and Tools
+
+    * Android Studio を使用した設定
+
+      [Flutter 公式ドキュメント](https://docs.flutter.dev/platform-integration/android/setup) を参照
+      
+    * コマンドラインからのインストール (Linux を例に)
+
+      ```bash
+      # 環境変数の設定
+      echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+      echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+      sourec ~/.bashrc
+
+      # SDK, NDK, Tools のインストール
+      ## sdkmanager.py を使用
+      sudo apt install sdkmanager
+      sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;27.0.12077973" "ndk;28.2.13676358"
+
+      # ライセンスの同意
+      flutter doctor --android-lincenses
+      ```
+  
+  * Keystore の設定
+
+    1. 新しい Keystore を生成するか、既存の Keystore を `./android/app/keystore.jks` にインポート
+    2. (Android Studio がない場合) `./android/local.properties` を作成または開き、以下のパラメータを追加
+
+      ```properties
+      keyAlias=<キーのエイリアス>
+      storePassword=<Keystoreパスワード>
+      keyPassword=<キーパスワード>
+      ```
+  * `flutter doctor` を実行してビルド環境の整合性を確認
+
+2. ビルドとパッケージング
+
+  ```bash
+  flutter pub get
+  dart run build-runner build -d
+  dart setup.dart android --arch=universal
+  ```
+
+#### Tips & Notice
+
+1. 現在のバージョンの flutter_distributor (v0.4.2) は Inno Setup のインストールパスをハードコードしています (`C:\Program Files (x86)\Inno Setup 6`)。必ず管理者権限でデフォルトディレクトリにインストールされていることを確認してください。
+2. `--compatible` パラメータを使用して[旧 CPU](https://go.dev/wiki/MinimumRequirements#amd64)向けにビルド
+3. その他のコマンドラインオプションは `dart setup.dart help <platform>` を実行
+
+### デバッグ (VS Code)
+
+Windows を例に
+
+1. core が事前にビルドされていることを確認
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. 対象デバイスに接続し、F5 を押してデバッグ開始
 
 ---
 

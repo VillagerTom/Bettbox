@@ -97,14 +97,137 @@ Bettbox의 의미：Better Experience, Out of the box (뛰어난 경험을, 설�
 
 ## 💻 개발 및 빌드
 
-Windows 환경을 예로 들면:
+### 참고 환경
 
-* Windows 장치가 필요합니다 (OS 버전 ≥ Windows 10)
-* 기타 필수 환경: Git, Visual Studio, Flutter 3.44.x, Golang, Inno Setup, Rust
-* `flutter pub get` (의존성 패키지 설치)
-* `dart .\setup.dart windows --arch amd64 --out core` (Core 커널만 빌드)
-* `dart .\setup.dart windows --arch amd64 --out app --compatible` (호환 버전 빌드 선택)
-* 빌드가 완료되면, 최종 결과물은 `dist/` 디렉터리에 저장됩니다.
+|    |버전|비고|
+|----|----|---|
+|Flutter|3.44.6|≥3.44|
+|Go|1.24.x|1.20.x for compatible build|
+|Java|temurin-17.x||
+|Android SDK|36.1||
+|Android NDK|27.0.12077973<br>28.2.13676358|core<br>app|
+|Rust|Latest stable||
+
+### 빌드 및 패키징
+
+#### Windows
+
+* 최소 요구 사항: Windows 10 1809
+* Toolchain: Flutter, Golang, Cargo, Visual Studio ≥ 2022
+* exe 패키징: Inno Setup
+
+```powershell
+# 빌드 및 패키징
+flutter pub get
+dart run build_runner build -d
+dart .\setup.dart windows
+```
+
+#### Linux
+
+* Toolchain: Flutter, Golang, Clang, CMake, Ninja, pkg-config
+* 의존 라이브러리: libcurl4, gtk3, libayatana-appindicator, libkeybinder3, libfuse2(for AppImage)
+* DEB 패키징: dpkg-deb
+* RPM 패키징: rpm, patchelf
+* AppImage 패키징: appimagetool, locate, libfuse2
+
+```bash
+# 의존성 설치
+## Ubuntu 24.04 기준, 필요에 따라 설치
+sudo apt install build-essential clang cmake ninja-build
+sudo apt install libcurl4-openssl-dev libgtk-3-dev lbayatana-appindicator3-dev libkeybinder-3.0-dev libfuse2
+sudo apt install dpkg-deb rpm patchelf locate
+wget https://github.com/Appimage/AppimageKit/releases/download/containuous/appimagetool-x86_64.AppImage
+chmod +x appimagetool
+sudo mv appimagetool /usr/local/bin/
+
+# 빌드 및 패키징
+## 필요에 따라 --targets 파라미터를 ","로 구분하여 입력
+flutter pub get
+dart run build_runner build -d
+dart setup.dart linux --targets=deb,rpm,appimage
+# 빌드만 수행
+dart setup.dart linux --build-only
+```
+
+#### Mac OS
+
+* Toolchain: Flutter, Golang, Xcode command-line tools, CocoaPods
+* 패키징: appdmg
+
+```zsh
+# 의존성 설치
+npm install appdmg
+# 빌드 및 패키징
+flutter pub get
+dart run build_runner build -d
+dart setup.dart macos
+```
+
+#### Android
+
+* Toolchain: Flutter, Golang, CMake, Android SDK, Android SDK Build-Tools, Android SDK Command-line Tools(optional: independent sdkmanager), Android SDK Platform-Tools, Android NDK
+
+1. 빌드 환경 구성
+
+  * Android SDK, NDK and Tools
+
+    * Android Studio로 구성
+
+      [Flutter 공식 문서](https://docs.flutter.dev/platform-integration/android/setup) 참조
+      
+    * 명령줄에서 설치 (Linux 플랫폼 예시)
+
+      ```bash
+      # 환경 변수 설정
+      echo 'export ANDROID_HOME=$HOME/.local/opt/android-sdk' >> ~/.bashrc
+      echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+      sourec ~/.bashrc
+
+      # SDK, NDK, Tools 설치
+      ## sdkmanager.py 사용
+      sudo apt install sdkmanager
+      sdkmanager --install "build-tools;36.0.0" "cmdline-tools;latest" "platform-tools" "platforms;android-36.1" "ndk;27.0.12077973" "ndk;28.2.13676358"
+
+      # 라이선스 수락
+      flutter doctor --android-lincenses
+      ```
+  
+  * Keystore 구성
+
+    1. 새 Keystore를 생성하거나 기존 Keystore를 `./android/app/keystore.jks`로 가져오기
+    2. (Android Studio 없음) `./android/local.properties` 파일을 생성하거나 열고 다음 파라미터 추가
+
+      ```properties
+      keyAlias=<키 별칭>
+      storePassword=<Keystore 암호>
+      keyPassword=<키 암호>
+      ```
+  * `flutter doctor` 실행하여 빌드 환경 무결성 확인
+
+2. 빌드 및 패키징
+
+  ```bash
+  flutter pub get
+  dart run build-runner build -d
+  dart setup.dart android --arch=universal
+  ```
+
+#### 팁 및 주의사항
+
+1. 현재 버전의 flutter_distributor(v0.4.2)는 Inno Setup 설치 경로(`C:\Program Files (x86)\Inno Setup 6`)를 하드코딩하고 있으므로, 반드시 관리자 권한으로 기본 디렉터리에 설치되어 있는지 확인하십시오
+2. `--compatible` 파라미터를 사용하여 [구형 CPU](https://go.dev/wiki/MinimumRequirements#amd64)용으로 빌드
+3. `dart setup.dart help <platform>` 실행하여 더 많은 명령줄 옵션 확인
+
+### 디버깅 (VS Code)
+
+Windows 예시
+
+1. core가 미리 빌드되어 있는지 확인
+```powershell
+dart .\setup.dart windows --out core --dev --ensure
+```
+2. 대상 기기에 연결하고 F5를 눌러 디버깅 시작
 
 ---
 
