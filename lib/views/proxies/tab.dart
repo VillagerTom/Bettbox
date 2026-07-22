@@ -148,14 +148,22 @@ class ProxiesTabViewState extends ConsumerState<ProxiesTabView>
     }
     final appController = globalState.appController;
     if (groupIndex == null) {
-      final currentIndex = _tabController?.index;
-      groupIndex = currentIndex;
+      final controller = _tabController;
+      if (controller == null) return;
+      final anim = controller.animation;
+      if (anim != null && anim.value != controller.index.toDouble()) {
+        return;
+      }
+      groupIndex = controller.index;
     }
     final currentGroups = appController.getCurrentGroups();
-    if (groupIndex == null || groupIndex > currentGroups.length) {
+    if (groupIndex < 0 || groupIndex >= currentGroups.length) {
       return;
     }
     final currentGroup = currentGroups[groupIndex];
+    if (appController.getCurrentGroupName() == currentGroup.name) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       globalState.appController.updateCurrentGroupName(currentGroup.name);
     });

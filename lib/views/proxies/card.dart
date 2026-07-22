@@ -17,6 +17,14 @@ final groupIconMapProvider = Provider<Map<String, String>>((ref) {
 
 class ProxyCard extends StatelessWidget {
   static final _emojiRegex = emojiRegex();
+  static final Map<String, bool> _emojiMatchCache = {};
+
+  static bool _hasEmoji(String name) {
+    return _emojiMatchCache.putIfAbsent(
+      name,
+      () => _emojiRegex.hasMatch(name),
+    );
+  }
 
   final String groupName;
   final Proxy proxy;
@@ -163,7 +171,7 @@ class ProxyCard extends StatelessWidget {
       return child;
     }
 
-    if (_emojiRegex.hasMatch(proxy.name)) {
+    if (_hasEmoji(proxy.name)) {
       return wrapPadding(nameWidget);
     }
 
@@ -230,102 +238,100 @@ class ProxyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final delayText = _buildDelayText(context);
-    return RepaintBoundary(
-      child: Stack(
-        children: [
-          Consumer(
-            builder: (_, ref, child) {
-              final selectedProxyName = ref.watch(
-                getSelectedProxyNameProvider(groupName),
-              );
-              final proxyNameWidget = _buildProxyNameWithIcon(context, ref);
-              return CommonCard(
-                onPressed: () {
-                  _changeProxy(ref);
-                },
-                isSelected: selectedProxyName == proxy.name,
-                child: Container(
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 8,
-                    children: [
-                      proxyNameWidget,
-                      if (type == ProxyCardType.expand) ...[
-                        SizedBox(
-                          height: measure.labelSmallHeight * 2 + 4,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            spacing: 4,
-                            children: [
-                              SizedBox(
-                                height: measure.labelSmallHeight,
-                                child: _ProxyDesc(proxy: proxy),
-                              ),
-                              SizedBox(
-                                height: measure.labelSmallHeight,
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  spacing: 4,
-                                  children: [
-                                    Expanded(
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: _ProxyMetaTag(proxy.type),
-                                      ),
+    return Stack(
+      children: [
+        Consumer(
+          builder: (_, ref, child) {
+            final selectedProxyName = ref.watch(
+              getSelectedProxyNameProvider(groupName),
+            );
+            final proxyNameWidget = _buildProxyNameWithIcon(context, ref);
+            return CommonCard(
+              onPressed: () {
+                _changeProxy(ref);
+              },
+              isSelected: selectedProxyName == proxy.name,
+              child: Container(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    proxyNameWidget,
+                    if (type == ProxyCardType.expand) ...[
+                      SizedBox(
+                        height: measure.labelSmallHeight * 2 + 4,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 4,
+                          children: [
+                            SizedBox(
+                              height: measure.labelSmallHeight,
+                              child: _ProxyDesc(proxy: proxy),
+                            ),
+                            SizedBox(
+                              height: measure.labelSmallHeight,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                spacing: 4,
+                                children: [
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: _ProxyMetaTag(proxy.type),
                                     ),
-                                    delayText,
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else
-                        SizedBox(
-                          height: measure.bodySmallHeight,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                flex: 1,
-                                child: TooltipText(
-                                  text: Text(
-                                    proxy.type,
-                                    style: context.textTheme.bodySmall
-                                        ?.copyWith(
-                                          overflow: TextOverflow.ellipsis,
-                                          color: context
-                                              .textTheme
-                                              .bodySmall
-                                              ?.color
-                                              ?.opacity80,
-                                        ),
                                   ),
+                                  delayText,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else
+                      SizedBox(
+                        height: measure.bodySmallHeight,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              flex: 1,
+                              child: TooltipText(
+                                text: Text(
+                                  proxy.type,
+                                  style: context.textTheme.bodySmall
+                                      ?.copyWith(
+                                        overflow: TextOverflow.ellipsis,
+                                        color: context
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color
+                                            ?.opacity80,
+                                      ),
                                 ),
                               ),
-                              delayText,
-                            ],
-                          ),
+                            ),
+                            delayText,
+                          ],
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              );
-            },
+              ),
+            );
+          },
+        ),
+        if (groupType.isComputedSelected)
+          Positioned(
+            top: 0,
+            right: 0,
+            child: _ProxyComputedMark(groupName: groupName, proxy: proxy),
           ),
-          if (groupType.isComputedSelected)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: _ProxyComputedMark(groupName: groupName, proxy: proxy),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
