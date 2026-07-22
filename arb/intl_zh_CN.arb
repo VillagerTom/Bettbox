@@ -275,6 +275,8 @@
   "list": "列表",
   "delay": "延迟",
   "style": "风格",
+  "linuxTrayIconUsePng": "托盘使用 PNG 图标",
+  "linuxTrayIconUsePngDesc": "若 Linux 托盘图标异常或不可见，请尝试打开",
   "size": "尺寸",
   "delayAnimation": "延迟动画",
   "delayAnimationDesc": "自定义测试过程中的动画显示",

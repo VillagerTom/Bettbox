@@ -275,6 +275,8 @@
   "list": "清單",
   "delay": "延遲",
   "style": "風格",
+  "linuxTrayIconUsePng": "托盤使用 PNG 圖標",
+  "linuxTrayIconUsePngDesc": "若 Linux 托盤圖標異常或不可見，請嘗試打開",
   "size": "尺寸",
   "delayAnimation": "延遲動畫",
   "delayAnimationDesc": "自訂測試過程中的動畫顯示",

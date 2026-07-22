@@ -2239,6 +2239,26 @@ class AppLocalizations {
     return Intl.message('Style', name: 'style', desc: '', args: []);
   }
 
+  /// `Use PNG Tray Icon`
+  String get linuxTrayIconUsePng {
+    return Intl.message(
+      'Use PNG Tray Icon',
+      name: 'linuxTrayIconUsePng',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `If the Linux tray icon is abnormal or invisible, try enabling this`
+  String get linuxTrayIconUsePngDesc {
+    return Intl.message(
+      'If the Linux tray icon is abnormal or invisible, try enabling this',
+      name: 'linuxTrayIconUsePngDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Size`
   String get size {
     return Intl.message('Size', name: 'size', desc: '', args: []);

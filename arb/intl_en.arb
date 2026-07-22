@@ -275,6 +275,8 @@
   "list": "List",
   "delay": "Delay",
   "style": "Style",
+  "linuxTrayIconUsePng": "Use PNG Tray Icon",
+  "linuxTrayIconUsePngDesc": "If the Linux tray icon is abnormal or invisible, try enabling this",
   "size": "Size",
   "delayAnimation": "Delay Animation",
   "delayAnimationDesc": "Customize animation during delay testing",

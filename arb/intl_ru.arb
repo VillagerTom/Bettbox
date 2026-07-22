@@ -275,6 +275,8 @@
   "list": "Список",
   "delay": "Задержка",
   "style": "Стиль",
+  "linuxTrayIconUsePng": "Использовать PNG иконку трея",
+  "linuxTrayIconUsePngDesc": "Если иконка трея Linux отображается некорректно, попробуйте включить",
   "size": "Высота",
   "delayAnimation": "Анимация задержки",
   "delayAnimationDesc": "Настройка анимации при тестировании",

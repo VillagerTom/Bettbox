@@ -1119,6 +1119,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "trayIconInvertDesc": MessageLookupByLibrary.simpleMessage(
       "Invert the current tray icon color",
     ),
+    "linuxTrayIconUsePng": MessageLookupByLibrary.simpleMessage("Use PNG Tray Icon"),
+    "linuxTrayIconUsePngDesc": MessageLookupByLibrary.simpleMessage(
+      "If the Linux tray icon is abnormal or invisible, try enabling this",
+    ),
     "tryManualRefresh": MessageLookupByLibrary.simpleMessage(
       "Please try manual refresh",
     ),

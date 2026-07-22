@@ -45,20 +45,9 @@ class Tray {
       await trayManager.destroy();
     }
     String iconPath;
-    if (system.isLinux && isStart) {
-      final systemIcon = 'bettbox-symbolic';
-      if (await _symbolicIconExists(systemIcon)) {
-        iconPath = systemIcon;
-      } else {
-        iconPath = utils.getTrayIconPath(
-          brightness:
-              brightness ??
-              WidgetsBinding.instance.platformDispatcher.platformBrightness,
-          isStart: false,
-          invertTrayIcon:
-              system.isWindows && globalState.config.themeProps.invertTrayIcon,
-        );
-      }
+    if (system.isLinux && isStart &&
+        !globalState.config.appSetting.linuxTrayIconUsePng) {
+      iconPath = 'bettbox-symbolic';
     } else {
       iconPath = utils.getTrayIconPath(
         brightness:
@@ -66,7 +55,7 @@ class Tray {
             WidgetsBinding.instance.platformDispatcher.platformBrightness,
         isStart: isStart,
         invertTrayIcon:
-            system.isWindows && globalState.config.themeProps.invertTrayIcon,
+            !system.isMacOS && globalState.config.themeProps.invertTrayIcon,
       );
     }
     await trayManager.setIcon(
@@ -76,20 +65,6 @@ class Tray {
     if (!Platform.isLinux) {
       await trayManager.setToolTip(appName);
     }
-  }
-
-  Future<bool> _symbolicIconExists(String iconName) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final xdgDataHome = Platform.environment['XDG_DATA_HOME'] ?? '$home/.local/share';
-    final iconPaths = [
-      '$xdgDataHome/icons/hicolor/symbolic/apps',
-      '/usr/local/share/icons/hicolor/symbolic/apps',
-      '/usr/share/icons/hicolor/symbolic/apps',
-    ];
-    for (final p in iconPaths) {
-      if (await File('$p/$iconName.svg').exists()) return true;
-    }
-    return false;
   }
 
   Future<void> update({

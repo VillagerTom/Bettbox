@@ -780,6 +780,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "trayIconInvertDesc": MessageLookupByLibrary.simpleMessage(
       "针对当前托盘图标颜色取反设置",
     ),
+    "linuxTrayIconUsePng": MessageLookupByLibrary.simpleMessage("托盘使用 PNG 图标"),
+    "linuxTrayIconUsePngDesc": MessageLookupByLibrary.simpleMessage(
+      "若 Linux 托盘图标异常或不可见，请尝试打开",
+    ),
     "tryManualRefresh": MessageLookupByLibrary.simpleMessage("请尝试手动刷新"),
     "tun": MessageLookupByLibrary.simpleMessage("虚拟网卡"),
     "tunDesc": MessageLookupByLibrary.simpleMessage("使用TUN接管设备流量"),

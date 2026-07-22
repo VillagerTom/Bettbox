@@ -37,6 +37,7 @@ _AppSettingProps _$AppSettingPropsFromJson(Map<String, dynamic> json) =>
           ) ??
           RecoveryStrategy.compatible,
       enableHighPriority: json['enableHighPriority'] as bool? ?? false,
+      linuxTrayIconUsePng: json['linuxTrayIconUsePng'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
@@ -64,6 +65,7 @@ Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
       'enableHighRefreshRate': instance.enableHighRefreshRate,
       'recoveryStrategy': _$RecoveryStrategyEnumMap[instance.recoveryStrategy]!,
       'enableHighPriority': instance.enableHighPriority,
+      'linuxTrayIconUsePng': instance.linuxTrayIconUsePng,
     };
 
 const _$RecoveryStrategyEnumMap = {

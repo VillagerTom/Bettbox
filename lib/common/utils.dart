@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
+import 'package:bett_box/state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bett_box/l10n/l10n.dart';
 import 'package:flutter/material.dart';
@@ -175,7 +176,8 @@ class Utils {
       return 'assets/images/icon_template.png';
     }
 
-    if (system.isLinux && isStart) {
+    if (system.isLinux && isStart &&
+          !globalState.config.appSetting.linuxTrayIconUsePng) {
       return 'bettbox-symbolic';
     }
 

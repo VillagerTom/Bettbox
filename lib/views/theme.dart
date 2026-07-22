@@ -45,6 +45,9 @@ class ThemeView extends ConsumerWidget {
     );
     final shouldShowHarmonyFont = locale?.startsWith('zh') == true || 
         locale?.startsWith('en') == true;
+    final linuxTrayIconUsePng = ref.watch(
+      appSettingProvider.select((state) => state.linuxTrayIconUsePng),
+    );
     
     final items = [
       _ThemeModeItem(),
@@ -53,7 +56,10 @@ class ThemeView extends ConsumerWidget {
       const _ClassicThemeItem(),
       if (shouldShowHarmonyFont) _HarmonyFontItem(),
       _LightIconItem(),
-      if (system.isWindows) _TrayIconInvertItem(),
+      if (system.isLinux) const _LinuxTrayIconUsePngItem(),
+      if (system.isWindows ||
+          (system.isLinux && linuxTrayIconUsePng))
+        _TrayIconInvertItem(),
       _TextScaleFactorItem(),
     ];
     return generateListView(items);
@@ -597,6 +603,44 @@ class _TrayIconInvertItem extends ConsumerWidget {
   }
 }
 
+class _LinuxTrayIconUsePngItem extends ConsumerWidget {
+  const _LinuxTrayIconUsePngItem();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final linuxTrayIconUsePng = ref.watch(
+      appSettingProvider.select((state) => state.linuxTrayIconUsePng),
+    );
+    return ListItem.switchItem(
+      leading: Icon(Icons.image_outlined),
+      horizontalTitleGap: 12,
+      title: Text(
+        appLocalizations.linuxTrayIconUsePng,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: context.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      subtitle: Text(
+        appLocalizations.linuxTrayIconUsePngDesc,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: context.colorScheme.onSurfaceVariant.withOpacity(0.7),
+        ),
+      ),
+      delegate: SwitchDelegate(
+        value: linuxTrayIconUsePng,
+        onChanged: (value) async {
+          ref
+              .read(appSettingProvider.notifier)
+              .updateState(
+                (state) => state.copyWith(linuxTrayIconUsePng: value),
+              );
+          await globalState.appController.updateTray(true);
+        },
+      ),
+    );
+  }
+}
+
 class _TextScaleFactorItem extends ConsumerWidget {
   const _TextScaleFactorItem();
 
@@ -688,19 +732,19 @@ class _PaletteDialogState extends State<_PaletteDialog> {
 
   ui.Color? _parseColor(String input) {
     final cleanInput = input.trim().replaceAll(' ', '').toLowerCase();
-    
+
     // Hex: #RRGGBB or RRGGBB
     if (RegExp(r'^#?[0-9a-f]{6}$').hasMatch(cleanInput)) {
       final hexString = cleanInput.startsWith('#') ? cleanInput.substring(1) : cleanInput;
       return ui.Color(int.parse('FF$hexString', radix: 16));
     }
-    
+
     // Hex with alpha: #AARRGGBB or AARRGGBB
     if (RegExp(r'^#?[0-9a-f]{8}$').hasMatch(cleanInput)) {
       final hexString = cleanInput.startsWith('#') ? cleanInput.substring(1) : cleanInput;
       return ui.Color(int.parse(hexString, radix: 16));
     }
-    
+
     // RGB/RGBA: rgb(255,255,255) or rgba(255,255,255,1.0)
     final rgbMatch = RegExp(r'^rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)$').firstMatch(cleanInput);
     if (rgbMatch != null) {
@@ -709,14 +753,14 @@ class _PaletteDialogState extends State<_PaletteDialog> {
       final b = int.parse(rgbMatch.group(3)!);
       final aStr = rgbMatch.group(4);
       final a = aStr != null ? double.parse(aStr) : 1.0;
-      
+
       final alphaVal = (a * 255).round().clamp(0, 255);
       final rVal = r.clamp(0, 255);
       final gVal = g.clamp(0, 255);
       final bVal = b.clamp(0, 255);
       return ui.Color.fromARGB(alphaVal, rVal, gVal, bVal);
     }
-    
+
     return null;
   }
 

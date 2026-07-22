@@ -1144,6 +1144,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "trayIconInvertDesc": MessageLookupByLibrary.simpleMessage(
       "Инвертировать цвет текущего значка в трее",
     ),
+    "linuxTrayIconUsePng": MessageLookupByLibrary.simpleMessage(
+      "Использовать PNG иконку трея",
+    ),
+    "linuxTrayIconUsePngDesc": MessageLookupByLibrary.simpleMessage(
+      "Если иконка трея Linux отображается некорректно, попробуйте включить",
+    ),
     "tryManualRefresh": MessageLookupByLibrary.simpleMessage(
       "Обновите вручную",
     ),

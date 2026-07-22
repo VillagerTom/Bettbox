@@ -103,6 +103,7 @@ abstract class AppSettingProps with _$AppSettingProps {
     @Default(false) bool enableHighRefreshRate,
     @Default(RecoveryStrategy.compatible) RecoveryStrategy recoveryStrategy,
     @Default(false) bool enableHighPriority,
+    @Default(false) bool linuxTrayIconUsePng,
   }) = _AppSettingProps;
 
   factory AppSettingProps.fromJson(Map<String, Object?> json) =>
