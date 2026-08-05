@@ -8,52 +8,13 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/file.h>
-#include <errno.h>
 
 #include "flutter/generated_plugin_registrant.h"
-
-static int _lock_fd = -1;
-
-static gchar* _get_lock_file_path() {
-  const gchar* user_data_dir = g_get_user_data_dir();
-  return g_build_filename(user_data_dir, "com.appshub.bettbox", "Bettbox.lock", nullptr);
-}
 
 static gchar* _get_control_socket_path(gboolean dev) {
   const gchar* user_data_dir = g_get_user_data_dir();
   const gchar* name = dev ? "BettboxDev.control.sock" : "Bettbox.control.sock";
   return g_build_filename(user_data_dir, "com.appshub.bettbox", name, nullptr);
-}
-
-static gboolean _try_acquire_instance_lock() {
-  g_autofree gchar* lock_path = _get_lock_file_path();
-  g_autofree gchar* lock_dir = g_path_get_dirname(lock_path);
-  g_mkdir_with_parents(lock_dir, 0755);
-
-  int fd = open(lock_path, O_CREAT | O_RDWR, 0644);
-  if (fd < 0) {
-    g_warning("Failed to open lock file: %s", g_strerror(errno));
-    return FALSE;
-  }
-
-  int flags = fcntl(fd, F_GETFD);
-  if (flags >= 0) {
-    fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
-  }
-
-  if (flock(fd, LOCK_EX | LOCK_NB) == 0) {
-    _lock_fd = fd;
-    return TRUE;
-  }
-
-  close(fd);
-  if (errno == EWOULDBLOCK || errno == EAGAIN) {
-    return FALSE;
-  }
-  g_warning("Failed to lock instance file: %s", g_strerror(errno));
-  return FALSE;
 }
 
 static void _send_control_command(const char* command) {
@@ -184,16 +145,9 @@ static gboolean my_application_local_command_line(GApplication* application, gch
   }
 
 
-  if (!_try_acquire_instance_lock()) {
-    _send_control_command("show");
-    *exit_status = 0;
-    return TRUE;
-  }
-
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
     g_warning("Failed to register: %s", error->message);
-    _send_control_command("show");
     *exit_status = 0;
     return TRUE;
   }
