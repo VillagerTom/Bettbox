@@ -11,37 +11,38 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-static gchar* _get_control_socket_path(gboolean dev) {
+static gboolean _is_dev_build() {
+  return g_str_has_suffix(APPLICATION_ID, ".dev");
+}
+
+static gchar* _get_control_socket_path() {
   const gchar* user_data_dir = g_get_user_data_dir();
-  const gchar* name = dev ? "BettboxDev.control.sock" : "Bettbox.control.sock";
-  return g_build_filename(user_data_dir, "com.appshub.bettbox", name, nullptr);
+  const gchar* name = _is_dev_build() ? "BettboxDev.control.sock" : "Bettbox.control.sock";
+  return g_build_filename(user_data_dir, APPLICATION_ID, name, nullptr);
 }
 
 static void _send_control_command(const char* command) {
-  const gboolean dev_modes[] = {TRUE, FALSE};
-  for (size_t i = 0; i < G_N_ELEMENTS(dev_modes); i++) {
-    g_autofree gchar* socket_path = _get_control_socket_path(dev_modes[i]);
+  g_autofree gchar* socket_path = _get_control_socket_path();
 
-    int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_fd < 0) {
-      continue;
-    }
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(client_fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
-      gchar* payload = g_strdup_printf("%s\n", command);
-      ssize_t bytes_written = write(client_fd, payload, strlen(payload));
-      (void)bytes_written; // Suppress unused result warning
-      g_free(payload);
-      close(client_fd);
-      return;
-    }
-    close(client_fd);
+  int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (client_fd < 0) {
+    return;
   }
+
+  struct sockaddr_un addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+
+  if (connect(client_fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+    gchar* payload = g_strdup_printf("%s\n", command);
+    ssize_t bytes_written = write(client_fd, payload, strlen(payload));
+    (void)bytes_written; // Suppress unused result warning
+    g_free(payload);
+    close(client_fd);
+    return;
+  }
+  close(client_fd);
 }
 
 // App method channel related
