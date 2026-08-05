@@ -20,8 +20,10 @@ endif()
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "com.appshub.bettbox")
+set(APP_DEV "0")
 if(_app_dev_found GREATER -1)
   set(APPLICATION_ID "${APPLICATION_ID}.dev")
+  set(APP_DEV "1")
 endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
@@ -75,6 +77,7 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 find_package(X11 REQUIRED)
 
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
+add_definitions(-DAPP_DEV=${APP_DEV})
 
 # Define the application target. To change its name, change BINARY_NAME above,
 # not the value here, or `flutter run` will no longer work.
