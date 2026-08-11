@@ -12,7 +12,22 @@
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "$id = \"${command:flutter.getSelectedDeviceId}\";",
+          "$d = (flutter devices --machine 2>$null | ConvertFrom-Json) | Where-Object { $_.id -eq $id } | Select-Object -First 1;",
+          "if (-not $d) { Write-Error \"No device selected: $id\"; exit 1 };",
+          "$p = $d.targetPlatform.Split('-')[0];",
+          "if ($p -eq 'darwin') { $p = 'macos' };",
+          "& dart ./setup.dart $p --out=core --dev --ensure"
+        ]
+      }
     }
   ]
 }
