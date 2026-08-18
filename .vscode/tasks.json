@@ -2,6 +2,29 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "init-settings",
+      "type": "shell",
+      "command": "test -f .vscode/settings.json || echo '{}' > .vscode/settings.json; jq -e 'has(\"bettbox.buildArgs.compatible\")' .vscode/settings.json >/dev/null || (jq '. + {\"bettbox.buildArgs.compatible\":\"\"}' .vscode/settings.json > /tmp/settings.json && mv /tmp/settings.json .vscode/settings.json)",
+      "windows": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "$p = '.vscode/settings.json'; if (-not (Test-Path $p)) { '{}' | Set-Content -Path $p }; $j = Get-Content -Path $p -Raw | ConvertFrom-Json; if (-not $j) { $j = [PSCustomObject]@{} }; if ($null -eq $j.'bettbox.buildArgs.compatible') { $j | Add-Member -NotePropertyName 'bettbox.buildArgs.compatible' -NotePropertyValue '' -Force; $j | ConvertTo-Json -Depth 10 | Set-Content -Path $p }"
+        ]
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "presentation": {
+        "reveal": "silent",
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "bettbox: ensure windows dev core",
       "type": "shell",
       "command": "dart",
@@ -10,6 +33,7 @@
         "windows",
         "--arch",
         "auto",
+        "${config:bettbox.buildArgs.compatible}",
         "--out",
         "core",
         "--dev",
@@ -50,6 +74,7 @@
         "linux",
         "--arch",
         "auto",
+        "${config:bettbox.buildArgs.compatible}",
         "--out",
         "core",
         "--dev",
