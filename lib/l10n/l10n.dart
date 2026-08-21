@@ -4764,21 +4764,6 @@ class AppLocalizations {
     );
   }
 
-  /// `Light Icon`
-  String get lightIcon {
-    return Intl.message('Light Icon', name: 'lightIcon', desc: '', args: []);
-  }
-
-  /// `Manually switch light desktop app icon`
-  String get lightIconDesc {
-    return Intl.message(
-      'Manually switch light desktop app icon',
-      name: 'lightIconDesc',
-      desc: '',
-      args: [],
-    );
-  }
-
   /// `Font Fix`
   String get harmonyFont {
     return Intl.message('Font Fix', name: 'harmonyFont', desc: '', args: []);

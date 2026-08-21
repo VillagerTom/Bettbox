@@ -581,8 +581,6 @@
   "trayIconInvertDesc": "現在のトレイアイコンの色を反転設定",
   "darkIcon": "ダークアイコン",
   "darkIconDesc": "デスクトップアプリのアイコンをダーク系に切り替え",
-  "lightIcon": "ライトアイコン",
-  "lightIconDesc": "デスクトップアプリのアイコンをライト系に切り替え",
   "harmonyFont": "フォント修復",
   "harmonyFontDesc": "表示異常を改善するため内蔵フォントを使用",
   "internet": "インターネット",

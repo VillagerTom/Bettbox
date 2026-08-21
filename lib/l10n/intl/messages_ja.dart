@@ -487,10 +487,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "layout": MessageLookupByLibrary.simpleMessage("レイアウト"),
     "leftClickBehavior": MessageLookupByLibrary.simpleMessage("左クリック"),
     "light": MessageLookupByLibrary.simpleMessage("ライト"),
-    "lightIcon": MessageLookupByLibrary.simpleMessage("ライトアイコン"),
-    "lightIconDesc": MessageLookupByLibrary.simpleMessage(
-      "デスクトップアプリのアイコンをライト系に切り替え",
-    ),
     "lineWrap": MessageLookupByLibrary.simpleMessage("折り返し"),
     "list": MessageLookupByLibrary.simpleMessage("リスト"),
     "listen": MessageLookupByLibrary.simpleMessage("リスニング"),
