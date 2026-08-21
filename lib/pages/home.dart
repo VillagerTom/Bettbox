@@ -5,7 +5,6 @@ import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef OnSelected = void Function(int index);
@@ -52,29 +51,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return HomeBackScope(
       onTvBack: () {
-        final currentPage = globalState.appState.pageLabel;
-        final isNav = isNavFocused;
-
-        if (currentPage == PageLabel.dashboard) {
-          if (globalState.isDashboardStartSwitchFocused) {
-            return false;
-          }
-          final focus = globalState.focusDashboardStartSwitch;
-          if (focus != null) {
-            focus();
-            return true;
-          }
-          return false;
-        }
-
-        if (isNav) {
-          globalState.appController.toPage(PageLabel.dashboard);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            globalState.focusDashboardStartSwitch?.call();
-          });
-          return true;
-        }
-
+        if (isNavFocused) return false;
         focusNav();
         return true;
       },
@@ -118,6 +95,14 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 child: bottomNavigationBar,
               );
+              if (globalState.isAndroidTV) {
+                return Column(
+                  children: [
+                    Expanded(child: pageContent),
+                    navBar,
+                  ],
+                );
+              }
               return Stack(
                 children: [
                   Positioned.fill(child: pageContent),
@@ -178,85 +163,73 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       child: SafeArea(
-        child: Focus(
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.arrowDown) {
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: FocusTraversalGroup(
-            policy: WidgetOrderTraversalPolicy(),
-            child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: navigationItems.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              final isSelected = index == currentIndex;
-              final focusNode = _getNavFocusNode(index);
-              return FocusTraversalOrder(
-                order: NumericFocusOrder(index.toDouble()),
-                child: AnimatedBuilder(
-                  animation: focusNode,
-                  builder: (context, child) {
-                    final isFocused = focusNode.hasFocus;
-                    return InkWell(
-                      focusNode: focusNode,
-                      onTap: () {
-                        globalState.appController.toPage(item.label);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? context.colorScheme.secondaryContainer
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: isFocused
-                              ? Border.all(
-                                  color: context.colorScheme.primary,
-                                  width: 2,
-                                )
-                              : Border.all(color: Colors.transparent, width: 2),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconTheme(
-                              data: IconThemeData(
-                                color: isSelected
-                                    ? context.colorScheme.onSecondaryContainer
-                                    : context.colorScheme.onSurfaceVariant,
-                                size: 24,
-                              ),
-                              child: item.icon,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item.label.localizedName,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? context.colorScheme.onSecondaryContainer
-                                    : context.colorScheme.onSurfaceVariant,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: navigationItems.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            final isSelected = index == currentIndex;
+            final focusNode = _getNavFocusNode(index);
+            return FocusTraversalOrder(
+              order: NumericFocusOrder(index.toDouble()),
+              child: AnimatedBuilder(
+                animation: focusNode,
+                builder: (context, child) {
+                  final isFocused = focusNode.hasFocus;
+                  return InkWell(
+                    focusNode: focusNode,
+                    onTap: () {
+                      globalState.appController.toPage(item.label);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                    );
-                  },
-                ),
-              );
-            }).toList(),
-          ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? context.colorScheme.secondaryContainer
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isFocused
+                            ? Border.all(
+                                color: context.colorScheme.primary,
+                                width: 2,
+                              )
+                            : Border.all(color: Colors.transparent, width: 2),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconTheme(
+                            data: IconThemeData(
+                              color: isSelected
+                                  ? context.colorScheme.onSecondaryContainer
+                                  : context.colorScheme.onSurfaceVariant,
+                              size: 24,
+                            ),
+                            child: item.icon,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.label.localizedName,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? context.colorScheme.onSecondaryContainer
+                                  : context.colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          }).toList(),
         ),
       ),
-    ),
     );
   }
 }

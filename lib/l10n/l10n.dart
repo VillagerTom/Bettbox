@@ -1604,26 +1604,6 @@ class AppLocalizations {
     return Intl.message('Core', name: 'core', desc: '', args: []);
   }
 
-  /// `Linkage Switch`
-  String get showStartSwitch {
-    return Intl.message(
-      'Linkage Switch',
-      name: 'showStartSwitch',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Display independent switch button on the homepage`
-  String get showStartSwitchDesc {
-    return Intl.message(
-      'Display independent switch button on the homepage',
-      name: 'showStartSwitchDesc',
-      desc: '',
-      args: [],
-    );
-  }
-
   /// `Bettbox is based on the powerful and flexible Mihomo (Clash.Meta) proxy kernel, dedicated to a superior user experience. Forked from FlClash: Better Experience, Out of the box`
   String get desc {
     return Intl.message(

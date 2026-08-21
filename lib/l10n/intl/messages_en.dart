@@ -1020,10 +1020,6 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "showMenu": MessageLookupByLibrary.simpleMessage("Open Menu"),
     "showPanel": MessageLookupByLibrary.simpleMessage("Show Window"),
-    "showStartSwitch": MessageLookupByLibrary.simpleMessage("Linkage Switch"),
-    "showStartSwitchDesc": MessageLookupByLibrary.simpleMessage(
-      "Display independent switch button on the homepage",
-    ),
     "shrink": MessageLookupByLibrary.simpleMessage("Compact"),
     "silentLaunch": MessageLookupByLibrary.simpleMessage("Silent Launch"),
     "silentLaunchDesc": MessageLookupByLibrary.simpleMessage(

@@ -229,7 +229,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "copyEnvVar": MessageLookupByLibrary.simpleMessage("環境変数をコピー"),
     "copyLink": MessageLookupByLibrary.simpleMessage("リンクをコピー"),
     "copySuccess": MessageLookupByLibrary.simpleMessage("コピー成功"),
-    "core": MessageLookupByLibrary.simpleMessage("カーネル"),
+    "core": MessageLookupByLibrary.simpleMessage("コア"),
     "coreConnected": MessageLookupByLibrary.simpleMessage("接続済み"),
     "coreInfo": MessageLookupByLibrary.simpleMessage("カーネル情報"),
     "coreSuspended": MessageLookupByLibrary.simpleMessage("一時停止中"),
@@ -809,10 +809,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "showHiddenItems": MessageLookupByLibrary.simpleMessage("非表示項目を表示"),
     "showMenu": MessageLookupByLibrary.simpleMessage("メニューを開く"),
     "showPanel": MessageLookupByLibrary.simpleMessage("ウィンドウを表示"),
-    "showStartSwitch": MessageLookupByLibrary.simpleMessage("単独スイッチ表示"),
-    "showStartSwitchDesc": MessageLookupByLibrary.simpleMessage(
-      "ホーム画面に独立したON/OFFボタンを表示",
-    ),
     "shrink": MessageLookupByLibrary.simpleMessage("コンパクト"),
     "silentLaunch": MessageLookupByLibrary.simpleMessage("サイレント起動"),
     "silentLaunchDesc": MessageLookupByLibrary.simpleMessage(

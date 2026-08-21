@@ -189,8 +189,6 @@
   "systemProxy": "System Proxy",
   "project": "Project",
   "core": "Core",
-  "showStartSwitch": "Linkage Switch",
-  "showStartSwitchDesc": "Display independent switch button on the homepage",
   "desc": "Bettbox is based on the powerful and flexible Mihomo (Clash.Meta) proxy kernel, dedicated to a superior user experience. Forked from FlClash: Better Experience, Out of the box",
   "startVpn": "Starting...",
   "stopVpn": "Stopping...",

@@ -1048,10 +1048,6 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "showMenu": MessageLookupByLibrary.simpleMessage("باز کردن منو"),
     "showPanel": MessageLookupByLibrary.simpleMessage("نمایش پنجره"),
-    "showStartSwitch": MessageLookupByLibrary.simpleMessage("دکمه کلید سوئیچ"),
-    "showStartSwitchDesc": MessageLookupByLibrary.simpleMessage(
-      "نمایش دکمه مستقل روشن/خاموش در صفحه اصلی",
-    ),
     "shrink": MessageLookupByLibrary.simpleMessage("فشرده"),
     "silentLaunch": MessageLookupByLibrary.simpleMessage("اجرای بی‌صدا"),
     "silentLaunchDesc": MessageLookupByLibrary.simpleMessage(

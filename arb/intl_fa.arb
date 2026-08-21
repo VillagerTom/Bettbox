@@ -189,8 +189,6 @@
   "systemProxy": "پروکسی سیستم",
   "project": "پروژه",
   "core": "هسته",
-  "showStartSwitch": "دکمه کلید سوئیچ",
-  "showStartSwitchDesc": "نمایش دکمه مستقل روشن/خاموش در صفحه اصلی",
   "desc": "Bettbox یک کلاینت پروکسی بر پایه هسته قدرتمند Mihomo (Clash.Meta) است. (برگرفته از FlClash)",
   "startVpn": "در حال شروع...",
   "stopVpn": "در حال توقف...",

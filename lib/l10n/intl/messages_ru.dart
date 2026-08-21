@@ -1031,12 +1031,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "showHiddenItems": MessageLookupByLibrary.simpleMessage("Показать скрытые"),
     "showMenu": MessageLookupByLibrary.simpleMessage("Открыть меню"),
     "showPanel": MessageLookupByLibrary.simpleMessage("Показать окно"),
-    "showStartSwitch": MessageLookupByLibrary.simpleMessage(
-      "Связанный переключатель",
-    ),
-    "showStartSwitchDesc": MessageLookupByLibrary.simpleMessage(
-      "Отображать отдельную кнопку переключения на главной странице",
-    ),
     "shrink": MessageLookupByLibrary.simpleMessage("Стандарт"),
     "silentLaunch": MessageLookupByLibrary.simpleMessage("Тихий запуск"),
     "silentLaunchDesc": MessageLookupByLibrary.simpleMessage(
