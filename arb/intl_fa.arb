@@ -498,6 +498,8 @@
   "endpointIndependentNat": "ارتقای NAT",
   "endpointIndependentNatDesc": "بهینه‌سازی تجربه برنامه‌های UDP و P2P",
   "endpointIndependentNatConfirmDesc": "فعالسازی Endpoint-Independent NAT ممکن است کارایی را اندکی کاهش دهد. تنها در صورت نیاز استفاده کنید",
+  "autoRedirect": "تغییر مسیر خودکار",
+  "autoRedirectDesc": "تغییر مسیر ترافیک TCP/DNS از طریق iptables به پروکسی (فقط لینوکس)",
   "network": "شبکه",
   "networkDesc": "تغییر تنظیمات شبکه",
   "bypassDomain": "دامنه‌های استثنا",

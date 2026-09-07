@@ -299,6 +299,7 @@ abstract class Tun with _$Tun {
     @JsonKey(name: 'endpoint-independent-nat')
     @Default(false)
     bool endpointIndependentNat,
+    @JsonKey(name: 'auto-redirect') @Default(true) bool autoRedirect,
   }) = _Tun;
 
   factory Tun.fromJson(Map<String, Object?> json) => _$TunFromJson(json);

@@ -4114,6 +4114,26 @@ class AppLocalizations {
     );
   }
 
+  /// `Auto Redirect`
+  String get autoRedirect {
+    return Intl.message(
+      'Auto Redirect',
+      name: 'autoRedirect',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Redirect TCP/DNS traffic via iptables to proxy (Linux only)`
+  String get autoRedirectDesc {
+    return Intl.message(
+      'Redirect TCP/DNS traffic via iptables to proxy (Linux only)',
+      name: 'autoRedirectDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Network`
   String get network {
     return Intl.message('Network', name: 'network', desc: '', args: []);

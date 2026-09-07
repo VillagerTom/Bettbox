@@ -498,6 +498,8 @@
   "endpointIndependentNat": "NAT增强",
   "endpointIndependentNatDesc": "优化 UDP/P2P 应用体验",
   "endpointIndependentNatConfirmDesc": "启用 Endpoint-Independent NAT 功能，性能可能会略有下降，此功能仅建议您在必要且熟悉的情况下开启",
+  "autoRedirect": "自动重定向",
+  "autoRedirectDesc": "通过 iptables 将 TCP/DNS 流量重定向到代理（仅 Linux）",
   "network": "网络",
   "networkDesc": "修改网络相关设置",
   "bypassDomain": "排除域名",

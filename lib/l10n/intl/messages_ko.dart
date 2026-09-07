@@ -134,6 +134,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "autoLaunch": MessageLookupByLibrary.simpleMessage("자동 시작"),
     "autoLaunchDesc": MessageLookupByLibrary.simpleMessage("시스템 부팅 시 앱 자동 시작"),
+    "autoRedirect": MessageLookupByLibrary.simpleMessage("자동 리디렉션"),
+    "autoRedirectDesc": MessageLookupByLibrary.simpleMessage(
+      "iptables로 TCP/DNS 트래픽을 프록시로 리디렉션 (Linux 전용)",
+    ),
     "autoRun": MessageLookupByLibrary.simpleMessage("자동 연결"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage("앱 실행 시 자동으로 프록시 연결"),
     "autoScroll": MessageLookupByLibrary.simpleMessage("자동 스크롤"),

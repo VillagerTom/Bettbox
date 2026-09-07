@@ -166,6 +166,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "autoLaunchDesc": MessageLookupByLibrary.simpleMessage(
       "Запуск при старте системы",
     ),
+    "autoRedirect": MessageLookupByLibrary.simpleMessage(
+      "Автоматическая переадресация",
+    ),
+    "autoRedirectDesc": MessageLookupByLibrary.simpleMessage(
+      "Перенаправлять TCP/DNS трафик через iptables на прокси (только Linux)",
+    ),
     "autoRun": MessageLookupByLibrary.simpleMessage("Автоподключение"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage(
       "Подключаться при запуске приложения",

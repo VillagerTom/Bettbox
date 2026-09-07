@@ -157,6 +157,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "autoLaunchDesc": MessageLookupByLibrary.simpleMessage(
       "اجرای خودکار هنگام روشن شدن سیستم",
     ),
+    "autoRedirect": MessageLookupByLibrary.simpleMessage("تغییر مسیر خودکار"),
+    "autoRedirectDesc": MessageLookupByLibrary.simpleMessage(
+      "تغییر مسیر ترافیک TCP/DNS از طریق iptables به پروکسی (فقط لینوکس)",
+    ),
     "autoRun": MessageLookupByLibrary.simpleMessage("اتصال خودکار"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage(
       "اتصال خودکار پروکسی پس از باز شدن برنامه",

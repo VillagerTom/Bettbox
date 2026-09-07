@@ -498,6 +498,8 @@
   "endpointIndependentNat": "NAT強化",
   "endpointIndependentNatDesc": "UDP / P2Pアプリの通信体験を最適化",
   "endpointIndependentNatConfirmDesc": "Endpoint-Independent NATを有効にするとパフォーマンスがわずかに低下する場合があります。必要な場合のみ設定してください",
+  "autoRedirect": "自動リダイレクト",
+  "autoRedirectDesc": "iptablesでTCP/DNSトラフィックをプロキシへリダイレクト（Linuxのみ）",
   "network": "ネットワーク",
   "networkDesc": "ネットワーク関連設定を変更",
   "bypassDomain": "バイパスドメイン",

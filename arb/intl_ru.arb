@@ -498,6 +498,8 @@
   "endpointIndependentNat": "Улучшенный NAT",
   "endpointIndependentNatDesc": "Оптимизация работы UDP/P2P приложений",
   "endpointIndependentNatConfirmDesc": "Включение функции Endpoint-Independent NAT может незначительно снизить производительность. Рекомендуется включать её только в случае необходимости и если вы с ней знакомы.",
+  "autoRedirect": "Автоматическая переадресация",
+  "autoRedirectDesc": "Перенаправлять TCP/DNS трафик через iptables на прокси (только Linux)",
   "network": "Сеть",
   "networkDesc": "Настройки сети",
   "bypassDomain": "Исключить домены",

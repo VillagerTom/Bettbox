@@ -120,6 +120,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "autoLaunch": MessageLookupByLibrary.simpleMessage("开机启动"),
     "autoLaunchDesc": MessageLookupByLibrary.simpleMessage("跟随系统自启动"),
+    "autoRedirect": MessageLookupByLibrary.simpleMessage("自动重定向"),
+    "autoRedirectDesc": MessageLookupByLibrary.simpleMessage(
+      "通过 iptables 将 TCP/DNS 流量重定向到代理（仅 Linux）",
+    ),
     "autoRun": MessageLookupByLibrary.simpleMessage("自动连接"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage("应用打开后自动连接"),
     "autoScroll": MessageLookupByLibrary.simpleMessage("自动滚动"),
