@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:dartssh2/dartssh2.dart';
 import 'package:intl/intl.dart';
 import 'package:ftpconnect/ftpconnect.dart';
 import 'package:bett_box/common/common.dart';
@@ -78,14 +79,10 @@ class Request {
     return Uint8List.fromList((data as List).cast<int>());
   }
 
-  Future<Response> _getFtpResponseForUrl(
-    String url,
-    ResponseType responseType,
-  ) async {
+  ({String? user, String? pass}) _parseUserInfo(String url) {
     final uri = Uri.parse(url);
-
-    var user = 'anonymous';
-    var pass = '';
+    String? user;
+    String? pass;
     if (uri.userInfo.isNotEmpty) {
       final colonIndex = uri.userInfo.indexOf(':');
       if (colonIndex != -1) {
@@ -95,12 +92,21 @@ class Request {
         user = Uri.decodeComponent(uri.userInfo);
       }
     }
+    return (user: user, pass: pass);
+  }
+
+  Future<Response> _getFtpResponseForUrl(
+    String url,
+    ResponseType responseType,
+  ) async {
+    final uri = Uri.parse(url);
+    final credentials = _parseUserInfo(url);
 
     final ftpConnect = FTPConnect(
       uri.host,
       port: uri.hasPort ? uri.port : 21,
-      user: user,
-      pass: pass,
+      user: credentials.user ?? 'anonymous',
+      pass: credentials.pass ?? '',
       timeout: 30,
     );
 
@@ -148,6 +154,71 @@ class Request {
       }
     } finally {
       await ftpConnect.disconnect();
+    }
+  }
+
+  Future<Response> _getSftpResponseForUrl(
+    String url,
+    ResponseType responseType,
+  ) async {
+    final uri = Uri.parse(url);
+    final credentials = _parseUserInfo(url);
+
+    final userName = credentials.user;
+    if (userName == null) {
+      throw Exception('Missing username in sftp url: $url');
+    }
+    if (uri.pathSegments.isEmpty) {
+      throw Exception('Empty file path in sftp url: $url');
+    }
+
+    final remotePath =
+        uri.pathSegments.where((segment) => segment.isNotEmpty).join('/');
+
+    final socket = await SSHSocket.connect(
+      uri.host,
+      uri.hasPort ? uri.port : 22,
+    );
+
+    final port = uri.hasPort ? uri.port : 22;
+
+    final client = SSHClient(
+      socket,
+      username: userName,
+      onPasswordRequest: () => credentials.pass ?? '',
+      onVerifyHostKey: (type, fingerprint) async {
+        final saved = await preferences.getSftpHostKey(uri.host, port);
+        final fingerprintStr = utf8.decode(fingerprint);
+        if (saved == null) {
+          await preferences.saveSftpHostKey(uri.host, port, fingerprintStr);
+          return true;
+        }
+        return saved == fingerprintStr;
+      },
+    );
+
+    try {
+      await client.authenticated;
+      final sftp = await client.sftp();
+      final file = await sftp.open(remotePath);
+      final bytes = await file.readBytes();
+      return _buildResponseFromBytes(
+        url: url,
+        bytes: bytes,
+        responseType: responseType,
+      );
+    } on SSHHostkeyError catch (e) {
+      final host = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+      throw Exception(
+        'Host key verification failed for $host: the remote host key does '
+        'not match the verified fingerprint, a man-in-the-middle attack or a '
+        'host key change may have occurred ($e)',
+      );
+    } on SftpStatusError catch (e) {
+      throw Exception('Failed to download SFTP file: $remotePath ($e)');
+    } finally {
+      client.close();
+      await client.done;
     }
   }
 
@@ -213,6 +284,10 @@ class Request {
   ) async {
     if (url.isFtpUrl) {
       return _getFtpResponseForUrl(url, responseType);
+    }
+
+    if (url.isSftpUrl) {
+      return _getSftpResponseForUrl(url, responseType);
     }
 
     if (url.isFileUrl) {

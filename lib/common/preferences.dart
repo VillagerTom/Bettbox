@@ -71,6 +71,17 @@ class Preferences {
     preferences?.remove(clashConfigKey);
   }
 
+  Future<String?> getSftpHostKey(String host, int? port) async {
+    final sharedPreferencesIns = await sharedPreferencesCompleter.future;
+    return sharedPreferencesIns?.getString('sftpHostKey:$host:${port ?? 22}');
+  }
+
+  Future<void> saveSftpHostKey(String host, int? port, String fingerprint) async {
+    final sharedPreferencesIns = await sharedPreferencesCompleter.future;
+    await sharedPreferencesIns
+        ?.setString('sftpHostKey:$host:${port ?? 22}', fingerprint);
+  }
+
   Future<void> clearPreferences() async {
     final sharedPreferencesIns = await sharedPreferencesCompleter.future;
     sharedPreferencesIns?.clear();
