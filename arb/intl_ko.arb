@@ -698,5 +698,7 @@
   "installTime": "설치 시간",
   "updateTime": "업데이트 시간",
   "inputUrlPassword": "{user}의 비밀번호",
-  "rememberUrlPassword": "비밀번호 기억하기"
+  "rememberUrlPassword": "비밀번호 기억하기",
+  "sshPassphrase": "SSH 키 암호문",
+  "sshPassphraseTitle": "{keyPath}의 암호문"
 }

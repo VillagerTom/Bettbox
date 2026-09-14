@@ -6,8 +6,17 @@ import 'dialog.dart';
 
 class UrlPasswordDialog extends StatefulWidget {
   final String user;
+  final String? title;
+  final String? labelText;
+  final bool showRemember;
 
-  const UrlPasswordDialog({super.key, required this.user});
+  const UrlPasswordDialog({
+    super.key,
+    required this.user,
+    this.title,
+    this.labelText,
+    this.showRemember = true,
+  });
 
   @override
   State<UrlPasswordDialog> createState() => _UrlPasswordDialogState();
@@ -36,7 +45,7 @@ class _UrlPasswordDialogState extends State<UrlPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return CommonDialog(
-      title: appLocalizations.inputUrlPassword(widget.user),
+      title: widget.title ?? appLocalizations.inputUrlPassword(widget.user),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -60,27 +69,31 @@ class _UrlPasswordDialogState extends State<UrlPasswordDialog> {
               onFieldSubmitted: (_) => _handleSubmit(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return appLocalizations.emptyTip(appLocalizations.password);
+                  return appLocalizations.emptyTip(
+                    widget.labelText ?? appLocalizations.password,
+                  );
                 }
                 return null;
               },
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                labelText: appLocalizations.password,
+                labelText: widget.labelText ?? appLocalizations.password,
               ),
             ),
-            const SizedBox(height: 12),
-            CheckboxListTile(
-              value: _remember,
-              onChanged: (value) {
-                setState(() {
-                  _remember = value ?? false;
-                });
-              },
-              title: Text(appLocalizations.rememberUrlPassword),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-            ),
+            if (widget.showRemember) ...[
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                value: _remember,
+                onChanged: (value) {
+                  setState(() {
+                    _remember = value ?? false;
+                  });
+                },
+                title: Text(appLocalizations.rememberUrlPassword),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
           ],
         ),
       ),
@@ -94,4 +107,18 @@ Future<({String password, bool remember})?> showUrlPasswordDialog(
   return globalState.showCommonDialog<({String password, bool remember})>(
     child: UrlPasswordDialog(user: user),
   );
+}
+
+Future<String?> showPassphraseDialog(String keyPath) async {
+  final result = await globalState.showCommonDialog<
+    ({String password, bool remember})
+  >(
+    child: UrlPasswordDialog(
+      user: keyPath,
+      title: appLocalizations.sshPassphraseTitle(keyPath),
+      labelText: appLocalizations.sshPassphrase,
+      showRemember: false,
+    ),
+  );
+  return result?.password;
 }

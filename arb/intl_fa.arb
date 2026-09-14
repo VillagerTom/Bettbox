@@ -698,5 +698,7 @@
   "installTime": "زمان نصب",
   "updateTime": "زمان به‌روزرسانی",
   "inputUrlPassword": "رمز عبور برای {user}",
-  "rememberUrlPassword": "رمز عبور را به خاطر بسپار"
+  "rememberUrlPassword": "رمز عبور را به خاطر بسپار",
+  "sshPassphrase": "عبارت عبور کلید SSH",
+  "sshPassphraseTitle": "عبارت عبور برای {keyPath}"
 }

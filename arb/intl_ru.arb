@@ -700,5 +700,7 @@
   "lightIcon": "Светлая иконка",
   "lightIconDesc": "Вручную переключить на светлую иконку приложения",
   "inputUrlPassword": "Пароль для {user}",
-  "rememberUrlPassword": "Запомнить пароль"
+  "rememberUrlPassword": "Запомнить пароль",
+  "sshPassphrase": "Парольная фраза ключа SSH",
+  "sshPassphraseTitle": "Парольная фраза для {keyPath}"
 }

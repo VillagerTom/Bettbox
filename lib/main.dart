@@ -114,6 +114,10 @@ Future<void> _runApp() async {
     return result.password;
   };
 
+  request.passphraseProvider = (url, keyPath) async {
+    return showPassphraseDialog(keyPath);
+  };
+
   runApp(ProviderScope(child: const Application()));
 }
 

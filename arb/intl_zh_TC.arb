@@ -698,5 +698,7 @@
   "installTime": "安裝時間",
   "updateTime": "更新時間",
   "inputUrlPassword": "{user}的密碼",
-  "rememberUrlPassword": "記住密碼"
+  "rememberUrlPassword": "記住密碼",
+  "sshPassphrase": "SSH 密鑰口令短語",
+  "sshPassphraseTitle": "{keyPath} 的口令短語"
 }

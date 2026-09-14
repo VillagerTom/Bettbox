@@ -53,9 +53,11 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m13(count) => "${count} items selected";
 
-  static String m14(label) => "${label} must be a URL";
+  static String m14(keyPath) => "Passphrase for ${keyPath}";
 
-  static String m15(count) =>
+  static String m15(label) => "${label} must be a URL";
+
+  static String m16(count) =>
       "${Intl.plural(count, one: 'year', other: 'years')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -1107,6 +1109,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "specialProxy": MessageLookupByLibrary.simpleMessage("Special Proxy"),
     "specialRules": MessageLookupByLibrary.simpleMessage("Special Rules"),
     "spinningLines": MessageLookupByLibrary.simpleMessage("Spinning Lines"),
+    "sshPassphrase": MessageLookupByLibrary.simpleMessage("SSH key passphrase"),
+    "sshPassphraseTitle": m14,
     "stackMode": MessageLookupByLibrary.simpleMessage("Stack Mode"),
     "standard": MessageLookupByLibrary.simpleMessage("Standard"),
     "start": MessageLookupByLibrary.simpleMessage("Start"),
@@ -1233,7 +1237,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("Upload"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("Get profile via URL"),
-    "urlTip": m14,
+    "urlTip": m15,
     "useGlobalScriptOverride": MessageLookupByLibrary.simpleMessage(
       "Use Global Script Override",
     ),
@@ -1272,6 +1276,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage(
       "Requires administrator privileges",
     ),
-    "years": m15,
+    "years": m16,
   };
 }

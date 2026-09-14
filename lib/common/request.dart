@@ -8,18 +8,21 @@ import 'package:dio/io.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:intl/intl.dart';
 import 'package:ftpconnect/ftpconnect.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/cupertino.dart';
 
 typedef UrlPasswordProvider = Future<String?> Function(String url, String user);
+typedef UrlPassphraseProvider = Future<String?> Function(String url, String keyPath);
 
 class Request {
   late final Dio _dio;
   late final Dio _clashDio;
   String? userAgent;
   UrlPasswordProvider? passwordProvider;
+  UrlPassphraseProvider? passphraseProvider;
 
   Request() {
     _dio = Dio(BaseOptions(headers: {'User-Agent': browserUa}));
@@ -110,6 +113,60 @@ class Request {
     return password;
   }
 
+  Future<String?> _promptForPassphrase(String url, String keyPath) async {
+    final provider = passphraseProvider;
+    if (provider == null) {
+      throw Exception('Missing passphrase for ssh key: $keyPath');
+    }
+    return provider(url, keyPath);
+  }
+
+  Future<List<SSHKeyPair>> _defaultSshKeys(String url) async {
+    final directories = <String>[];
+
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    if (home != null && home.isNotEmpty) {
+      directories.add('$home/.ssh');
+    }
+
+    if (system.isAndroid) {
+      try {
+        final supportDir = await getApplicationSupportDirectory();
+        directories.add('${supportDir.path}/.ssh');
+      } catch (_) {
+        // ignore: keep probing the home directory only
+      }
+    }
+
+    const keyNames = ['id_ed25519', 'id_rsa', 'id_ecdsa'];
+    final keys = <SSHKeyPair>[];
+    for (final dir in directories) {
+      for (final keyName in keyNames) {
+        final keyFile = File('$dir/$keyName');
+        if (!await keyFile.exists()) continue;
+        String pemText;
+        try {
+          pemText = await keyFile.readAsString();
+        } catch (_) {
+          continue;
+        }
+        if (pemText.trim().isEmpty) continue;
+        try {
+          String? passphrase;
+          if (SSHKeyPair.isEncryptedPem(pemText)) {
+            passphrase = await _promptForPassphrase(url, keyFile.path);
+            if (passphrase == null || passphrase.isEmpty) continue;
+          }
+          keys.addAll(SSHKeyPair.fromPem(pemText, passphrase));
+        } on SSHKeyDecodeError catch (e) {
+          throw Exception('Failed to read ssh key $keyFile: $e');
+        }
+      }
+    }
+    return keys;
+  }
+
   Future<Response> _getFtpResponseForUrl(
     String url,
     ResponseType responseType,
@@ -195,7 +252,9 @@ class Request {
     }
 
     String? password = credentials.pass;
-    if (password == null || password.isEmpty) {
+
+    final sshKeys = await _defaultSshKeys(url);
+    if (sshKeys.isEmpty && (password == null || password.isEmpty)) {
       password = await _promptForPassword(url, userName);
     }
 
@@ -215,7 +274,16 @@ class Request {
     final client = SSHClient(
       socket,
       username: userName,
-      onPasswordRequest: () async => password ?? '',
+      identities: sshKeys.isEmpty ? null : sshKeys,
+      onPasswordRequest: () async {
+        if (password != null && password.isNotEmpty) return password;
+        if (sshKeys.isEmpty) return null;
+        try {
+          return await _promptForPassword(url, userName);
+        } catch (_) {
+          return null;
+        }
+      },
       onVerifyHostKey: (type, fingerprint) async {
         final saved = await preferences.getSftpHostKey(uri.host, port);
         final fingerprintStr = utf8.decode(fingerprint);

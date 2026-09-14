@@ -5683,6 +5683,26 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `SSH key passphrase`
+  String get sshPassphrase {
+    return Intl.message(
+      'SSH key passphrase',
+      name: 'sshPassphrase',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Passphrase for {keyPath}`
+  String sshPassphraseTitle(Object keyPath) {
+    return Intl.message(
+      'Passphrase for $keyPath',
+      name: 'sshPassphraseTitle',
+      desc: '',
+      args: [keyPath],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

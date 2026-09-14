@@ -698,5 +698,7 @@
   "installTime": "インストール日時",
   "updateTime": "更新日時",
   "inputUrlPassword": "{user}のパスワード",
-  "rememberUrlPassword": "パスワードを記憶"
+  "rememberUrlPassword": "パスワードを記憶",
+  "sshPassphrase": "SSH キーのパスフレーズ",
+  "sshPassphraseTitle": "{keyPath} のパスフレーズ"
 }

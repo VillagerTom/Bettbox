@@ -697,5 +697,7 @@
   "installTime": "Install Time",
   "updateTime": "Update Time",
   "inputUrlPassword": "Password for {user}",
-  "rememberUrlPassword": "Remember password"
+  "rememberUrlPassword": "Remember password",
+  "sshPassphrase": "SSH key passphrase",
+  "sshPassphraseTitle": "Passphrase for {keyPath}"
 }

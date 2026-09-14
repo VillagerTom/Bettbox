@@ -50,9 +50,11 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m13(count) => "${count} مورد انتخاب شده";
 
-  static String m14(label) => "${label} باید یک URL معتبر باشد";
+  static String m14(keyPath) => "عبارت عبور برای ${keyPath}";
 
-  static String m15(count) => "${Intl.plural(count, other: '# سال')}";
+  static String m15(label) => "${label} باید یک URL معتبر باشد";
+
+  static String m16(count) => "${Intl.plural(count, other: '# سال')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -1133,6 +1135,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "specialProxy": MessageLookupByLibrary.simpleMessage("پروکسی ویژه"),
     "specialRules": MessageLookupByLibrary.simpleMessage("قوانین ویژه"),
     "spinningLines": MessageLookupByLibrary.simpleMessage("خطوط چرخان"),
+    "sshPassphrase": MessageLookupByLibrary.simpleMessage(
+      "عبارت عبور کلید SSH",
+    ),
+    "sshPassphraseTitle": m14,
     "stackMode": MessageLookupByLibrary.simpleMessage("حالت پشته"),
     "standard": MessageLookupByLibrary.simpleMessage("استاندارد"),
     "start": MessageLookupByLibrary.simpleMessage("شروع"),
@@ -1267,7 +1273,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "دریافت پروفایل از طریق آدرس URL",
     ),
-    "urlTip": m14,
+    "urlTip": m15,
     "useGlobalScriptOverride": MessageLookupByLibrary.simpleMessage(
       "استفاده از اسکریپت اورراید سراسری",
     ),
@@ -1308,6 +1314,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage(
       "نیازمند دسترسی مدیریت (Admin)",
     ),
-    "years": m15,
+    "years": m16,
   };
 }
