@@ -32,24 +32,26 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m5(count) => "${Intl.plural(count, other: '時間')}";
 
-  static String m6(count) => "${Intl.plural(count, other: '分')}";
+  static String m6(user) => "${user}のパスワード";
 
-  static String m7(count) => "${Intl.plural(count, other: 'ヶ月')}";
+  static String m7(count) => "${Intl.plural(count, other: '分')}";
 
-  static String m8(label) => "${label} はありません";
+  static String m8(count) => "${Intl.plural(count, other: 'ヶ月')}";
 
-  static String m9(label) => "${label} は数値である必要があります";
+  static String m9(label) => "${label} はありません";
 
-  static String m10(label) => "${label} は1024〜49151の範囲で指定してください（0で無効）";
+  static String m10(label) => "${label} は数値である必要があります";
 
-  static String m11(statusCode) =>
+  static String m11(label) => "${label} は1024〜49151の範囲で指定してください（0で無効）";
+
+  static String m12(statusCode) =>
       "プロファイルのインポートに失敗しました。通信状態を確認するかURLをリセットしてください ( HTTPエラーコード: ${statusCode} )";
 
-  static String m12(count) => "${count} 件選択中";
+  static String m13(count) => "${count} 件選択中";
 
-  static String m13(label) => "${label} は有効なURLである必要があります";
+  static String m14(label) => "${label} は有効なURLである必要があります";
 
-  static String m14(count) => "${Intl.plural(count, other: '年')}";
+  static String m15(count) => "${Intl.plural(count, other: '年')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -472,6 +474,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputCorrectHotkey": MessageLookupByLibrary.simpleMessage(
       "正しいショートカットキーを入力してください",
     ),
+    "inputUrlPassword": m6,
     "installTime": MessageLookupByLibrary.simpleMessage("インストール日時"),
     "intelligentSelected": MessageLookupByLibrary.simpleMessage("スマート選択"),
     "internet": MessageLookupByLibrary.simpleMessage("インターネット"),
@@ -527,11 +530,11 @@ class MessageLookup extends MessageLookupByLibrary {
     "minimizeOnExitDesc": MessageLookupByLibrary.simpleMessage(
       "デフォルトのウィンドウ閉じる動作を変更",
     ),
-    "minutes": m6,
+    "minutes": m7,
     "mixedPort": MessageLookupByLibrary.simpleMessage("混合ポート (Mixed)"),
     "mode": MessageLookupByLibrary.simpleMessage("モード"),
     "monochromeScheme": MessageLookupByLibrary.simpleMessage("モノクローム"),
-    "months": m7,
+    "months": m8,
     "more": MessageLookupByLibrary.simpleMessage("詳細"),
     "moreIpInfo": MessageLookupByLibrary.simpleMessage("詳細 IP 情報"),
     "name": MessageLookupByLibrary.simpleMessage("名前"),
@@ -611,8 +614,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "nullProfileDesc": MessageLookupByLibrary.simpleMessage(
       "プロファイルがありません。追加してください",
     ),
-    "nullTip": m8,
-    "numberTip": m9,
+    "nullTip": m9,
+    "numberTip": m10,
     "oneColumn": MessageLookupByLibrary.simpleMessage("1列"),
     "onlinePanel": MessageLookupByLibrary.simpleMessage("オンラインパネル"),
     "onlyIcon": MessageLookupByLibrary.simpleMessage("アイコンのみ"),
@@ -698,7 +701,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "重複しないポート番号を入力してください",
     ),
-    "portTip": m10,
+    "portTip": m11,
     "powerSwitch": MessageLookupByLibrary.simpleMessage("電源スイッチ"),
     "preferH3Desc": MessageLookupByLibrary.simpleMessage("DoHでHTTP/3を優先使用"),
     "pressKeyboard": MessageLookupByLibrary.simpleMessage("キーを入力してください"),
@@ -712,7 +715,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "profileHasUpdate": MessageLookupByLibrary.simpleMessage(
       "プロファイルが変更されました。自動更新をオフにしますか？",
     ),
-    "profileImportFailed": m11,
+    "profileImportFailed": m12,
     "profileNameNullValidationDesc": MessageLookupByLibrary.simpleMessage(
       "設定名を入力してください",
     ),
@@ -775,6 +778,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "アプリ一覧を更新しますか？",
     ),
     "regExp": MessageLookupByLibrary.simpleMessage("正規表現"),
+    "rememberUrlPassword": MessageLookupByLibrary.simpleMessage("パスワードを記憶"),
     "remote": MessageLookupByLibrary.simpleMessage("リモート"),
     "remoteBackupDesc": MessageLookupByLibrary.simpleMessage(
       "WebDAVへデータをバックアップ",
@@ -825,7 +829,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "selectAll": MessageLookupByLibrary.simpleMessage("すべて選択"),
     "selected": MessageLookupByLibrary.simpleMessage("選択済み"),
-    "selectedCountTitle": m12,
+    "selectedCountTitle": m13,
     "serviceReady": MessageLookupByLibrary.simpleMessage("サービス準備完了"),
     "serviceRunning": MessageLookupByLibrary.simpleMessage("サービス稼働中"),
     "settings": MessageLookupByLibrary.simpleMessage("設定"),
@@ -984,7 +988,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("送信"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("URLから設定を取得"),
-    "urlTip": m13,
+    "urlTip": m14,
     "useGlobalScriptOverride": MessageLookupByLibrary.simpleMessage(
       "グローバルスクリプトオーバーライドを使用",
     ),
@@ -1015,6 +1019,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage("ホワイトリストモード"),
     "writeToSystem": MessageLookupByLibrary.simpleMessage("システムへ適用"),
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage("管理者権限が必要です"),
-    "years": m14,
+    "years": m15,
   };
 }

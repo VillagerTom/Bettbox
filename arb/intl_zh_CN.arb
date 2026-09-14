@@ -696,5 +696,7 @@
   "networkErrorRetryLater": "网络异常，请稍后再试",
   "tunVirtualAddress": "TUN 虚拟网卡地址",
   "installTime": "安装时间",
-  "updateTime": "更新时间"
+  "updateTime": "更新时间",
+  "inputUrlPassword": "{user}的密码",
+  "rememberUrlPassword": "记住密码"
 }

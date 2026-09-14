@@ -696,5 +696,7 @@
   "networkErrorRetryLater": "網路異常，請稍後再試",
   "tunVirtualAddress": "TUN 虛擬網卡位址",
   "installTime": "安裝時間",
-  "updateTime": "更新時間"
+  "updateTime": "更新時間",
+  "inputUrlPassword": "{user}的密碼",
+  "rememberUrlPassword": "記住密碼"
 }

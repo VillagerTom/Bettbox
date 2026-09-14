@@ -22,6 +22,7 @@ import 'common/common.dart';
 import 'common/external_control.dart';
 import 'common/network_matcher.dart';
 import 'models/models.dart';
+import 'widgets/url_password_dialog.dart';
 
 ReceivePort? _serviceReceiverPort;
 ReceivePort? _messageReceiverPort;
@@ -100,6 +101,19 @@ Future<void> _runApp() async {
     clipboardExt.init();
   }
   HttpOverrides.global = BettboxHttpOverrides();
+
+  request.passwordProvider = (url, user) async {
+    final saved = await preferences.getUrlPassword(url);
+    if (saved != null && saved.isNotEmpty) return saved;
+
+    final result = await showUrlPasswordDialog(user);
+    if (result == null) return null;
+    if (result.remember) {
+      await preferences.saveUrlPassword(url, result.password);
+    }
+    return result.password;
+  };
+
   runApp(ProviderScope(child: const Application()));
 }
 

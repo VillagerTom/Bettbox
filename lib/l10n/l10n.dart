@@ -5663,6 +5663,26 @@ class AppLocalizations {
   String get updateTime {
     return Intl.message('Update Time', name: 'updateTime', desc: '', args: []);
   }
+
+  /// `Password for {user}`
+  String inputUrlPassword(Object user) {
+    return Intl.message(
+      'Password for $user',
+      name: 'inputUrlPassword',
+      desc: '',
+      args: [user],
+    );
+  }
+
+  /// `Remember password`
+  String get rememberUrlPassword {
+    return Intl.message(
+      'Remember password',
+      name: 'rememberUrlPassword',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

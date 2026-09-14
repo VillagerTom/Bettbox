@@ -82,6 +82,21 @@ class Preferences {
         ?.setString('sftpHostKey:$host:${port ?? 22}', fingerprint);
   }
 
+  Future<String?> getUrlPassword(String url) async {
+    final sharedPreferencesIns = await sharedPreferencesCompleter.future;
+    return sharedPreferencesIns?.getString('urlPassword:$url');
+  }
+
+  Future<void> saveUrlPassword(String url, String password) async {
+    final sharedPreferencesIns = await sharedPreferencesCompleter.future;
+    await sharedPreferencesIns?.setString('urlPassword:$url', password);
+  }
+
+  Future<void> clearUrlPassword(String url) async {
+    final sharedPreferencesIns = await sharedPreferencesCompleter.future;
+    await sharedPreferencesIns?.remove('urlPassword:$url');
+  }
+
   Future<void> clearPreferences() async {
     final sharedPreferencesIns = await sharedPreferencesCompleter.future;
     sharedPreferencesIns?.clear();

@@ -698,5 +698,7 @@
   "installTime": "Время установки",
   "updateTime": "Время обновления",
   "lightIcon": "Светлая иконка",
-  "lightIconDesc": "Вручную переключить на светлую иконку приложения"
+  "lightIconDesc": "Вручную переключить на светлую иконку приложения",
+  "inputUrlPassword": "Пароль для {user}",
+  "rememberUrlPassword": "Запомнить пароль"
 }

@@ -13,10 +13,13 @@ import 'package:bett_box/models/models.dart';
 import 'package:bett_box/state.dart';
 import 'package:flutter/cupertino.dart';
 
+typedef UrlPasswordProvider = Future<String?> Function(String url, String user);
+
 class Request {
   late final Dio _dio;
   late final Dio _clashDio;
   String? userAgent;
+  UrlPasswordProvider? passwordProvider;
 
   Request() {
     _dio = Dio(BaseOptions(headers: {'User-Agent': browserUa}));
@@ -95,18 +98,36 @@ class Request {
     return (user: user, pass: pass);
   }
 
+  Future<String> _promptForPassword(String url, String user) async {
+    final provider = passwordProvider;
+    if (provider == null) {
+      throw Exception('Missing password in url: $url');
+    }
+    final password = await provider(url, user);
+    if (password == null || password.isEmpty) {
+      throw Exception('Missing password in url: $url');
+    }
+    return password;
+  }
+
   Future<Response> _getFtpResponseForUrl(
     String url,
     ResponseType responseType,
   ) async {
     final uri = Uri.parse(url);
     final credentials = _parseUserInfo(url);
+    final userName = credentials.user;
+
+    String? password = credentials.pass;
+    if (userName != null && (password == null || password.isEmpty)) {
+      password = await _promptForPassword(url, userName);
+    }
 
     final ftpConnect = FTPConnect(
       uri.host,
       port: uri.hasPort ? uri.port : 21,
-      user: credentials.user ?? 'anonymous',
-      pass: credentials.pass ?? '',
+      user: userName ?? 'anonymous',
+      pass: password ?? '',
       timeout: 30,
     );
 
@@ -172,6 +193,11 @@ class Request {
       throw Exception('Empty file path in sftp url: $url');
     }
 
+    String? password = credentials.pass;
+    if (password == null || password.isEmpty) {
+      password = await _promptForPassword(url, userName);
+    }
+
     final remotePath =
         uri.pathSegments.where((segment) => segment.isNotEmpty).join('/');
 
@@ -185,7 +211,7 @@ class Request {
     final client = SSHClient(
       socket,
       username: userName,
-      onPasswordRequest: () => credentials.pass ?? '',
+      onPasswordRequest: () async => password ?? '',
       onVerifyHostKey: (type, fingerprint) async {
         final saved = await preferences.getSftpHostKey(uri.host, port);
         final fingerprintStr = utf8.decode(fingerprint);
