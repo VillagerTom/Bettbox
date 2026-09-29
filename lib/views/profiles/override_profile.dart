@@ -199,6 +199,9 @@ class _OverrideProfileViewState extends State<OverrideProfileView> {
                 final res = await globalState.showMessage(
                   message: TextSpan(text: appLocalizations.saveChanges),
                 );
+                if (res == null) {
+                  return false;
+                }
                 if (res == true && context.mounted) {
                   _handleSave(ref, newOverrideData);
                 }
