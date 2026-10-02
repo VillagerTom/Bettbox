@@ -399,24 +399,27 @@ class RuleTitle extends ConsumerWidget {
 ///    下把手只随悬停浮现，触屏看不到；触屏起拖本来就是整卡长按，也不必瞄准小图标。
 ///    鼠标下把手可见可瞄，同样无需放大。
 ///
-/// 图标与 trailing 的复选框同一套显现规则：[isSelectMode] 或 [hovered] 为真即
-/// 显示——多选模式本来就能拖，把手常驻是模式的一部分；hover 只有鼠标类指针
-/// 产生，普通模式触屏看不到它。两个槽位恒占位，出现/消失不挤动正文；悬停
-/// 反馈用 [InkResponse]、半径 20，与 Checkbox 的径向光晕同规格。
+/// 图标与 trailing 的复选框同一套显现规则：[isSelectMode] 或本行悬停为真即显示
+/// ——多选模式本来就能拖，把手常驻是模式的一部分；悬停只由鼠标类指针产生
+/// （[MouseRegion] 对触屏不派发事件）。两个槽位恒占位，出现/消失不挤动正文；
+/// 悬停反馈用 [InkResponse]、半径 20，与 Checkbox 的径向光晕同规格。
 ///
 /// 图标层比外层深，先收到落在图标上的 pointer down；靠 [_iconDragPointer] 让
 /// 外层跳过已认领的指针，避免一次按下向列表注册两个识别器。图标单击派发
 /// [onPressed]，与卡片同一动作。
+///
+/// 多选模式下长按起拖没有竞技对手：使用方须把卡片的 onLongPress 置空——保证来自
+/// 对手缺席，不来自注册顺序。
 class RuleRow extends StatefulWidget {
   const RuleRow({
     super.key,
     required this.index,
     required this.iconColor,
     required this.isSelectMode,
-    required this.hovered,
+    required this.isSelected,
     required this.onPressed,
+    required this.onToggleSelect,
     required this.title,
-    required this.trailing,
     required this.titleTextStyle,
   });
 
@@ -426,13 +429,14 @@ class RuleRow extends StatefulWidget {
   /// 长按起拖只在这个模式下启用；普通模式的长按归卡片（进多选）。
   final bool isSelectMode;
 
-  final bool hovered;
+  final bool isSelected;
 
   /// 图标单击，与卡片同一动作（普通=编辑，多选=切换选中）。
   final VoidCallback onPressed;
 
+  final VoidCallback onToggleSelect;
+
   final Widget title;
-  final Widget? trailing;
   final TextStyle? titleTextStyle;
 
   @override
@@ -451,6 +455,10 @@ class _RuleRowState extends State<RuleRow> {
 
   /// 被图标认领的指针 id，外层据此跳过，避免重复注册识别器。
   int? _iconDragPointer;
+
+  /// 本行悬停态。行内元素共享它，所以留在行内而不是提到列表的父状态：悬停一行
+  /// 只重建这一行。重排会重建行的 State，悬停态因此是重新推导而非迁移。
+  bool _hovered = false;
 
   @override
   void dispose() {
@@ -513,58 +521,80 @@ class _RuleRowState extends State<RuleRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: _handleCardPointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerEnd,
-      onPointerCancel: _handlePointerEnd,
-      child: ListTile(
-        minTileHeight: 0,
-        minVerticalPadding: 0,
-        titleTextStyle: widget.titleTextStyle,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        leading: SizedBox(
-          width: 20,
-          height: 20,
-          child: (widget.isSelectMode || widget.hovered)
-              ? Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: _handleIconPointerDown,
-                  child: InkResponse(
-                    onTap: widget.onPressed,
-                    mouseCursor: SystemMouseCursors.move,
-                    radius: 20,
-                    child: Icon(
-                      Icons.drag_indicator,
-                      size: 20,
-                      color: widget.iconColor,
+    final showHandle = widget.isSelectMode || _hovered;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        if (!_hovered) {
+          setState(() => _hovered = true);
+        }
+      },
+      onExit: (_) {
+        if (_hovered) {
+          setState(() => _hovered = false);
+        }
+      },
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: _handleCardPointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerEnd,
+        onPointerCancel: _handlePointerEnd,
+        child: ListTile(
+          minTileHeight: 0,
+          minVerticalPadding: 0,
+          titleTextStyle: widget.titleTextStyle,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          leading: SizedBox(
+            width: 20,
+            height: 20,
+            child: showHandle
+                ? Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: _handleIconPointerDown,
+                    child: InkResponse(
+                      onTap: widget.onPressed,
+                      mouseCursor: SystemMouseCursors.move,
+                      radius: 20,
+                      child: Icon(
+                        Icons.drag_indicator,
+                        size: 20,
+                        color: widget.iconColor,
+                      ),
                     ),
-                  ),
-                )
-              : null,
+                  )
+                : null,
+          ),
+          title: widget.title,
+          // GestureDetector 吞掉这一格的 tap：既不落到卡片上，也不显示编辑动作
+          trailing: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: showHandle
+                  ? CommonCheckBox(
+                      value: widget.isSelected,
+                      isCircle: true,
+                      onChanged: (_) => widget.onToggleSelect(),
+                    )
+                  : null,
+            ),
+          ),
         ),
-        title: widget.title,
-        trailing: widget.trailing,
       ),
     );
   }
 }
 
-class RuleContent extends ConsumerStatefulWidget {
+class RuleContent extends ConsumerWidget {
   final double maxWidth;
 
   const RuleContent({super.key, required this.maxWidth});
-
-  @override
-  ConsumerState<RuleContent> createState() => _RuleContentState();
-}
-
-class _RuleContentState extends ConsumerState<RuleContent> {
-  String? _hoveredRuleId;
 
   Widget _buildItem({
     Key? key,
@@ -572,15 +602,10 @@ class _RuleContentState extends ConsumerState<RuleContent> {
     required int index,
     required bool isSelected,
     required bool isSelectMode,
-    required bool hovered,
-    required ValueChanged<String?> onHover,
     required VoidCallback onEdit,
     required VoidCallback onTab,
     required BuildContext context,
   }) {
-    // 触屏没有 hover，复选框只在多选态出现。不需要判断平台：hovered 只由
-    // MouseRegion.onEnter 写入
-    final showCheckBox = isSelectMode || hovered;
     // 卡片与拖拽图标共用同一单击动作；图标经 InkResponse 显式派发，
     // 与点卡片正文效果一致
     void handleTap() {
@@ -591,51 +616,29 @@ class _RuleContentState extends ConsumerState<RuleContent> {
       }
     }
 
-    return MouseRegion(
+    return Material(
       key: key,
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => onHover(rule.id),
-      onExit: (_) => onHover(null),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: CommonCard(
-            padding: EdgeInsets.zero,
-            radius: 18,
-            type: CommonCardType.filled,
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        child: CommonCard(
+          padding: EdgeInsets.zero,
+          radius: 18,
+          type: CommonCardType.filled,
+          isSelected: isSelected,
+          onPressed: handleTap,
+          // 多选模式置空，让位给行内的长按起拖（契约见 RuleRow）；普通模式长按
+          // = 选中本条进入多选
+          onLongPress: isSelectMode ? null : onTab,
+          child: RuleRow(
+            index: index,
+            iconColor: context.colorScheme.outline,
+            isSelectMode: isSelectMode,
             isSelected: isSelected,
             onPressed: handleTap,
-            // 多选模式置空，让位给行内的长按起拖（契约见 RuleRow）；普通模式长按
-            // = 选中本条进入多选
-            onLongPress: isSelectMode ? null : onTab,
-            child: RuleRow(
-              index: index,
-              iconColor: context.colorScheme.outline,
-              isSelectMode: isSelectMode,
-              hovered: hovered,
-              onPressed: handleTap,
-              titleTextStyle: context.textTheme.bodyMedium?.toJetBrainsMono,
-              title: EmojiText(rule.value),
-              // GestureDetector 吞掉这一格的 tap：既不落到卡片上，也不显示编辑动作
-              trailing: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {},
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: showCheckBox
-                      ? CommonCheckBox(
-                          value: isSelected,
-                          isCircle: true,
-                          onChanged: (_) {
-                            onTab();
-                          },
-                        )
-                      : null,
-                ),
-              ),
-            ),
+            onToggleSelect: onTab,
+            titleTextStyle: context.textTheme.bodyMedium?.toJetBrainsMono,
+            title: EmojiText(rule.value),
           ),
         ),
       ),
@@ -655,8 +658,7 @@ class _RuleContentState extends ConsumerState<RuleContent> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final maxWidth = widget.maxWidth;
+  Widget build(BuildContext context, WidgetRef ref) {
     final vm3 = ref.watch(
       profileOverrideStateProvider.select((state) {
         final overrideRule = state.overrideData?.rule;
@@ -709,13 +711,6 @@ class _RuleContentState extends ConsumerState<RuleContent> {
           index: index,
           isSelected: selectedRules.contains(rule.id),
           isSelectMode: isSelectMode,
-          hovered: _hoveredRuleId == rule.id,
-          onHover: (id) {
-            if (_hoveredRuleId == id) {
-              return;
-            }
-            setState(() => _hoveredRuleId = id);
-          },
           onEdit: () {
             globalState.appController.handleAddOrUpdate(ref, rule);
           },
