@@ -37,6 +37,10 @@ func syncDirectoryPermissions(baseDir string, targetUid, targetGid int) {
 		return
 	}
 
+	// The setuid core is root-owned and lives under homeDir in AppImage builds:
+	// chowning it back would revoke the very grant the process is running under.
+	selfExe, selfExeErr := os.Executable()
+
 	fixedCount := 0
 	_ = filepath.WalkDir(baseDir, func(currentPath string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -46,6 +50,9 @@ func syncDirectoryPermissions(baseDir string, targetUid, targetGid int) {
 			if d.IsDir() {
 				return fs.SkipDir
 			}
+			return nil
+		}
+		if selfExeErr == nil && currentPath == selfExe {
 			return nil
 		}
 
