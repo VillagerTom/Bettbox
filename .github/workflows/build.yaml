@@ -26,6 +26,11 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Fetch upstream tags
+        run: |
+          git remote add upstream https://github.com/appshubcc/Bettbox.git
+          git fetch --tags --force upstream
+
       - name: Read latest tag
         id: tag
         shell: bash
