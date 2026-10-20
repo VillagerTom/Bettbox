@@ -1,8 +1,9 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
+import 'package:bett_box/providers/app.dart';
 import 'package:bett_box/providers/config.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -51,6 +52,7 @@ class ProxiesSetting extends StatelessWidget {
   List<Widget> _buildStyleSetting() {
     return generateSection(
       plain: true,
+      isFirst: true,
       title: appLocalizations.style,
       items: [
         SingleChildScrollView(
@@ -75,7 +77,10 @@ class ProxiesSetting extends StatelessWidget {
                         ref
                             .read(proxiesStyleSettingProvider.notifier)
                             .updateState((state) {
-                              return state.copyWith(type: item);
+                              return state.copyWith(
+                                type: item,
+                                hasCustomizedStyle: true,
+                              );
                             });
                       },
                     ),
@@ -117,6 +122,7 @@ class ProxiesSetting extends StatelessWidget {
                             .updateState((state) {
                               return state.copyWith(sortType: item);
                             });
+                        ref.read(sortNumProvider.notifier).add();
                       },
                     ),
                 ],
@@ -226,7 +232,10 @@ class ProxiesSetting extends StatelessWidget {
                         ref
                             .read(proxiesStyleSettingProvider.notifier)
                             .updateState((state) {
-                              return state.copyWith(iconStyle: item);
+                              return state.copyWith(
+                                iconStyle: item,
+                                hasCustomizedStyle: true,
+                              );
                             });
                       },
                     ),
@@ -241,35 +250,37 @@ class ProxiesSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ..._buildStyleSetting(),
-          ..._buildSortSetting(),
-          ..._buildLayoutSetting(),
-          ..._buildSizeSetting(),
-          Consumer(
-            builder: (_, ref, child) {
-              final isList = ref.watch(
-                proxiesStyleSettingProvider.select(
-                  (state) => state.type == ProxiesType.list,
-                ),
-              );
-              if (isList) {
-                return child!;
-              }
-              return Container();
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [..._buildGroupStyleSetting()],
+    return ScrollEdgeRise(
+      builder: (_, rise) => SingleChildScrollView(
+        padding: EdgeInsets.only(top: 8 + rise, bottom: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ..._buildStyleSetting(),
+            ..._buildSortSetting(),
+            ..._buildLayoutSetting(),
+            ..._buildSizeSetting(),
+            Consumer(
+              builder: (_, ref, child) {
+                final isList = ref.watch(
+                  proxiesStyleSettingProvider.select(
+                    (state) => state.type == ProxiesType.list,
+                  ),
+                );
+                if (isList) {
+                  return child!;
+                }
+                return Container();
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [..._buildGroupStyleSetting()],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

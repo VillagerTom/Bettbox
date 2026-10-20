@@ -1,23 +1,25 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:bett_box/plugins/app.dart';
-import 'package:bett_box/plugins/service.dart' as vpn_service;
+import 'package:bett_box/plugins/clipboard_ext.dart';
 import 'package:bett_box/plugins/tile.dart';
 import 'package:bett_box/plugins/vpn.dart';
 import 'package:bett_box/state.dart';
-import 'package:code_forge/code_forge.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:synchronized/synchronized.dart';
 
 import 'application.dart';
 import 'clash/core.dart';
 import 'clash/lib.dart';
 import 'common/common.dart';
 import 'common/external_control.dart';
+import 'common/network_matcher.dart';
 import 'models/models.dart';
 
 ReceivePort? _serviceReceiverPort;
@@ -34,14 +36,16 @@ Future<void> main(List<String> args) async {
     exit(0);
   }
 
-  if (system.isDesktop) {
+  if (system.isMacOS || appPath.isPortable) {
     final acquire = await singleInstanceLock.acquire();
     if (!acquire) {
-      commonPrint.log(
+      commonPrint.warn(
         'SingleInstanceLock: another instance detected or lock failed, exiting',
       );
-      await _sendControlCommand('show');
-      await Future.delayed(const Duration(milliseconds: 100));
+      if (!appPath.isPortable) {
+        await _sendControlCommand('show');
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
       exit(0);
     }
   }
@@ -49,13 +53,12 @@ Future<void> main(List<String> args) async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 50 * 1024 * 1024;
 
   final version = await system.version;
-  await globalState.initApp(version);
-  await clashCore.preload();
+  await Future.wait([globalState.initApp(version), clashCore.preload()]);
 
   try {
     await uiManager.initializeUI();
   } catch (e) {
-    commonPrint.log('Failed to initialize UI: $e');
+    commonPrint.error('Failed to initialize UI: $e');
   }
 
   await _runApp();
@@ -69,7 +72,7 @@ Future<void> _sendControlCommand(String command) async {
       return;
     } catch (e) {
       if (i == 4) {
-        commonPrint.log('Failed to send $command command: $e');
+        commonPrint.warn('Failed to send $command command: $e');
         return;
       }
       await Future.delayed(const Duration(milliseconds: 200));
@@ -78,24 +81,19 @@ Future<void> _sendControlCommand(String command) async {
 }
 
 Future<void> _runApp() async {
-  try {
-    await RustLib.init();
-  } catch (e) {
-    commonPrint.log('Failed to initialize code_forge RustLib: $e');
-  }
+  await ensureRustLib();
 
   if (system.isAndroid) {
-    try {
-      await FlutterDisplayMode.setHighRefreshRate();
-    } catch (e) {
-      commonPrint.log('Failed to set high refresh rate: $e');
-    }
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
   await android?.init();
 
   await window?.init();
+  if (system.isWindows) {
+    clipboardExt.init();
+  }
   HttpOverrides.global = BettboxHttpOverrides();
-  runApp(ProviderScope(child: const Application()));
+  runApp(ProviderScope(retry: (_, _) => null, child: const Application()));
 }
 
 @pragma('vm:entry-point')
@@ -108,6 +106,44 @@ Future<void> _service(List<String> flags) async {
     final quickStart = flags.contains('quick');
     final bootStart = flags.contains('boot');
     final clashLibHandler = ClashLibHandler();
+    final smartAutoStopLock = Lock();
+
+    Future<void> checkSmartAutoStop() async {
+      try {
+        final vpnProps = globalState.config.vpnProps;
+        if (!vpnProps.smartAutoStop) return;
+        final networks = vpnProps.smartAutoStopNetworks;
+        if (networks.isEmpty) return;
+
+        await smartAutoStopLock.synchronized(() async {
+          final isSmartStopped = await vpn?.isSmartStopped() ?? false;
+          final candidateIps =
+              await vpn?.getLocalIpAddresses() ?? const <String>[];
+          final candidateGateways =
+              await vpn?.getLocalGateways() ?? const <String>[];
+          if (candidateIps.isEmpty && candidateGateways.isEmpty) return;
+
+          final shouldStop =
+              candidateIps.any((ip) => NetworkMatcher.matchAny(ip, networks)) ||
+              candidateGateways.any(
+                (gw) => NetworkMatcher.matchAnyGateway(gw, networks),
+              );
+
+          if (shouldStop && !isSmartStopped) {
+            final isRunning = await vpn?.getStatus() ?? false;
+            if (isRunning) {
+              await vpn?.setSmartStopped(true);
+              await vpn?.smartStop();
+            }
+          } else if (!shouldStop && isSmartStopped) {
+            await vpn?.setSmartStopped(false);
+            await vpn?.smartResume(clashLibHandler.getAndroidVpnOptions());
+          }
+        });
+      } catch (e) {
+        commonPrint.warn('Smart auto stop check failed: $e');
+      }
+    }
 
     tile?.addListener(
       _TileListenerWithService(
@@ -134,6 +170,7 @@ Future<void> _service(List<String> flags) async {
         onDnsChanged: (String dns) {
           clashLibHandler.updateDns(dns);
         },
+        onNetworkChanged: checkSmartAutoStop,
       ),
     );
 
@@ -173,38 +210,27 @@ Future<void> _service(List<String> flags) async {
           params,
           globalState.getCoreState(),
         );
-        debugPrint(res);
-        if (res.isNotEmpty) {
-          commonPrint.log('QuickStart failed with error: $res');
+        final message = res.message;
+        debugPrint(message);
+        if (message.isNotEmpty) {
+          commonPrint.error('QuickStart failed with error: $message');
           await vpn?.stop();
           return;
         }
         await vpn?.start(clashLibHandler.getAndroidVpnOptions());
+        Future.delayed(const Duration(seconds: 2), checkSmartAutoStop);
 
         if (globalState.config.vpnProps.networkSpeedNotification) {
           final profile = globalState.config.profiles
               .where((e) => e.id == profileId)
               .firstOrNull;
           final profileName = profile?.label ?? 'Bettbox';
-          await vpn_service.service?.updateNotificationSpeed(
-            profileName,
-            '↑0B/s ↓0B/s',
-          );
-        }
-
-        if (globalState.config.appSetting.openLogs) {
-          await clashLibHandler.invokeAction(
-            '{"id": "quickStartLog", "method": "startLog"}',
-          );
-        } else {
-          await clashLibHandler.invokeAction(
-            '{"id": "quickStopLog", "method": "stopLog"}',
-          );
+          await vpn?.updateNotificationSpeed(profileName, '↑0B/s ↓0B/s');
         }
 
         clashLibHandler.startListener();
       } catch (e) {
-        commonPrint.log('Fatal error during service background start: $e');
+        commonPrint.error('Fatal error during service background start: $e');
         await vpn?.stop();
       }
     });
@@ -214,7 +240,9 @@ Future<void> _service(List<String> flags) async {
 void _handleMainIpc(ClashLibHandler clashLibHandler) {
   final sendPort = IsolateNameServer.lookupPortByName(mainIsolate);
   if (sendPort == null) {
-    commonPrint.log('Service: mainIsolate sendPort not found, IPC unavailable');
+    commonPrint.warn(
+      'Service: mainIsolate sendPort not found, IPC unavailable',
+    );
     return;
   }
 
@@ -241,7 +269,7 @@ void _safeSend(SendPort sendPort, dynamic message) {
   try {
     sendPort.send(message);
   } catch (e) {
-    commonPrint.log('Service: IPC send failed: $e');
+    commonPrint.warn('Service: IPC send failed: $e');
     final retryPort = IsolateNameServer.lookupPortByName(mainIsolate);
     if (retryPort != null) {
       try {
@@ -278,13 +306,23 @@ class _TileListenerWithService with TileListener {
 @immutable
 class _VpnListenerWithService with VpnListener {
   final Function(String dns) _onDnsChanged;
+  final Function() _onNetworkChanged;
 
-  const _VpnListenerWithService({required Function(String dns) onDnsChanged})
-    : _onDnsChanged = onDnsChanged;
+  const _VpnListenerWithService({
+    required Function(String dns) onDnsChanged,
+    required Function() onNetworkChanged,
+  }) : _onDnsChanged = onDnsChanged,
+       _onNetworkChanged = onNetworkChanged;
 
   @override
   void onDnsChanged(String dns) {
     super.onDnsChanged(dns);
     _onDnsChanged(dns);
+  }
+
+  @override
+  void onNetworkChanged() {
+    super.onNetworkChanged();
+    _onNetworkChanged();
   }
 }

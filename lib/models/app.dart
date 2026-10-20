@@ -25,7 +25,7 @@ abstract class AppState with _$AppState {
     required Brightness brightness,
     int? runTime,
     @Default([]) List<ExternalProvider> providers,
-    String? localIp,
+    NetworkInfo? localNetwork,
     required FixedList<TrackerInfo> requests,
     required int version,
     required FixedList<Log> logs,
@@ -33,7 +33,6 @@ abstract class AppState with _$AppState {
     required Traffic totalTraffic,
     @Default(false) bool realTunEnable,
     @Default(false) bool loading,
-    @Default(true) bool isScreenOn,
     required SystemUiOverlayStyle systemUiOverlayStyle,
   }) = _AppState;
 }

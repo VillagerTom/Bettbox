@@ -10,8 +10,9 @@ import 'package:bett_box/views/profiles/edit_profile.dart';
 import 'package:bett_box/views/profiles/override_profile.dart';
 import 'package:bett_box/views/profiles/scripts.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 import 'add_profile.dart';
 
@@ -62,6 +63,7 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
         message: TextSpan(
           children: [for (final message in messages) TextSpan(text: message)],
         ),
+        cancelable: false,
       );
     }
   }
@@ -73,6 +75,7 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
           _updateProfiles();
         },
         icon: const Icon(Icons.sync),
+        tooltip: appLocalizations.syncAll,
       ),
       IconButton(
         onPressed: () {
@@ -83,13 +86,14 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
             },
           );
         },
+        tooltip: appLocalizations.script,
         icon: Consumer(
           builder: (_, ref, _) {
             final isScriptMode = ref.watch(
               scriptStateProvider.select((state) => state.realId != null),
             );
             return Icon(
-              Icons.functions,
+              Icons.terminal_outlined,
               color: isScriptMode ? context.colorScheme.primary : null,
             );
           },
@@ -105,6 +109,7 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
             },
           );
         },
+        tooltip: appLocalizations.sort,
         icon: const Icon(Icons.sort),
         iconSize: 26,
       ),
@@ -135,8 +140,8 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
       title: appLocalizations.profiles,
       floatingActionButton: _buildFAB(),
       actions: _buildActions(),
-      body: Consumer(
-        builder: (_, ref, _) {
+      body: ActiveConsumer(
+        builder: (_, ref) {
           final profilesSelectorState = ref.watch(
             profilesSelectorStateProvider,
           );
@@ -150,45 +155,48 @@ class _ProfilesViewState extends ConsumerState<ProfilesView> {
                     profilesSelectorState.columns
               ? profilesSelectorState.profiles.length
               : profilesSelectorState.columns;
-          return Align(
-            alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              key: profilesStoreKey,
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom:
-                    (profilesSelectorState.profiles.isNotEmpty &&
-                            profilesSelectorState.profiles.length % columns == 0
-                        ? 88
-                        : 16) +
-                    (isMobileView
-                        ? getFloatingBottomBarReserveHeight(context)
-                        : 0),
-              ),
-              child: Grid(
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                crossAxisCount: columns,
-                children: [
-                  for (
-                    int i = 0;
-                    i < profilesSelectorState.profiles.length;
-                    i++
-                  )
-                    GridItem(
-                      child: ProfileItem(
-                        key: Key(profilesSelectorState.profiles[i].id),
-                        profile: profilesSelectorState.profiles[i],
-                        groupValue: profilesSelectorState.currentProfileId,
-                        onChanged: (profileId) {
-                          ref.read(currentProfileIdProvider.notifier).value =
-                              profileId;
-                        },
+          return ScrollEdgeRise(
+            builder: (context, rise) => Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                key: profilesStoreKey,
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16 + rise,
+                  bottom:
+                      (profilesSelectorState.profiles.isNotEmpty &&
+                              profilesSelectorState.profiles.length % columns ==
+                                  0
+                          ? 88
+                          : 16) +
+                      (isMobileView
+                          ? getFloatingBottomBarReserveHeight(context)
+                          : 0),
+                ),
+                child: Grid(
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  crossAxisCount: columns,
+                  children: [
+                    for (
+                      int i = 0;
+                      i < profilesSelectorState.profiles.length;
+                      i++
+                    )
+                      GridItem(
+                        child: ProfileItem(
+                          key: Key(profilesSelectorState.profiles[i].id),
+                          profile: profilesSelectorState.profiles[i],
+                          groupValue: profilesSelectorState.currentProfileId,
+                          onChanged: (profileId) {
+                            ref.read(currentProfileIdProvider.notifier).value =
+                                profileId;
+                          },
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -227,10 +235,10 @@ class ProfileItem extends StatelessWidget {
     await globalState.appController.safeRun(
       () async {
         final patchConfig = globalState.config.patchClashConfig;
-        final runtimeConfig = await globalState.patchRawConfig(
+        final content = await globalState.getRuntimeConfigContent(
           patchConfig: patchConfig,
+          profile: profile,
         );
-        final content = await encodeYamlTask(runtimeConfig);
         if (!context.mounted) {
           return;
         }
@@ -241,11 +249,7 @@ class ProfileItem extends StatelessWidget {
           content: content,
           readOnly: true,
         );
-        BaseNavigator.push<String>(
-          context,
-          previewPage,
-          maintainState: false,
-        );
+        BaseNavigator.push<String>(context, previewPage, maintainState: false);
       },
       needLoading: true,
       title: appLocalizations.tip,
@@ -265,6 +269,7 @@ class ProfileItem extends StatelessWidget {
         message: TextSpan(
           text: '${profile.label ?? profile.id}: ${e.formatError}',
         ),
+        cancelable: false,
       );
     }
   }
@@ -279,6 +284,7 @@ class ProfileItem extends StatelessWidget {
           actions: [
             IconButton(
               icon: const Icon(Icons.security),
+              tooltip: appLocalizations.ageKeyGenerateTitle,
               onPressed: () {
                 editKey.currentState?.showAgeKeyGenerator();
               },
@@ -295,42 +301,115 @@ class ProfileItem extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildUrlProfileInfo(BuildContext context) {
+  Widget _buildTitleRow(BuildContext context) {
+    final subtitleText = profile.type == ProfileType.file
+        ? appLocalizations.localFile
+        : profile.subscriptionInfo?.expireDesc;
+
+    return Row(
+      children: [
+        Flexible(
+          child: EmojiText(
+            profile.label ?? profile.id,
+            style: context.textTheme.titleMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (subtitleText != null && subtitleText.isNotEmpty) ...[
+          const SizedBox(width: 6),
+          Text('·', style: context.textTheme.labelMedium?.toLight),
+          const SizedBox(width: 6),
+          Text(
+            subtitleText,
+            style: context.textTheme.labelMedium?.toLight,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildContentInfo(BuildContext context) {
     final subscriptionInfo = profile.subscriptionInfo;
     final updateTimeText = profile.lastUpdateDate?.lastUpdateTimeDesc ?? '';
+    final hasUsageBar =
+        subscriptionInfo != null &&
+        ((subscriptionInfo.upload + subscriptionInfo.download > 0) ||
+            subscriptionInfo.total > 0);
 
-    return [
-      const SizedBox(height: 8),
-      if (subscriptionInfo != null) ...[
-        SubscriptionInfoView(subscriptionInfo: subscriptionInfo),
-        // Traffic / Total · Expiry - Update time
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${_getTrafficText(subscriptionInfo)} · ${_getExpireText(subscriptionInfo)} - $updateTimeText',
-                style: context.textTheme.labelMedium?.toLight,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+    String bottomText;
+    if (hasUsageBar) {
+      bottomText = '${_getTrafficText(subscriptionInfo)} · $updateTimeText';
+    } else if (profile.type == ProfileType.url) {
+      final trafficText = subscriptionInfo != null
+          ? _getTrafficText(subscriptionInfo)
+          : 'Unlimited';
+      bottomText = '$trafficText · $updateTimeText';
+    } else {
+      bottomText = '${appLocalizations.lastEdit} · $updateTimeText';
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 14,
+          child: hasUsageBar
+              ? Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2.5),
+                    child: Container(
+                      height: 5,
+                      alignment: Alignment.centerLeft,
+                      color: context.colorScheme.primary.withValues(
+                        alpha: 0.15,
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor:
+                            (subscriptionInfo.total > 0
+                                    ? (subscriptionInfo.upload +
+                                              subscriptionInfo.download) /
+                                          subscriptionInfo.total
+                                    : 0.0)
+                                .clamp(0.0, 1.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: context.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(2.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      appLocalizations.noUsageData,
+                      style: context.textTheme.labelSmall?.toLight.copyWith(
+                        height: 1.0,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
         ),
-      ] else
-        // Show only update time when no subscription info
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                updateTimeText,
-                style: context.textTheme.labelMedium?.toLight,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        const SizedBox(height: 6),
+        Text(
+          bottomText,
+          style: context.textTheme.labelMedium?.toLight,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-    ];
+      ],
+    );
   }
 
   String _getTrafficText(SubscriptionInfo subscriptionInfo) {
@@ -353,25 +432,6 @@ class ProfileItem extends StatelessWidget {
     return '$useShow / $totalShow';
   }
 
-  String _getExpireText(SubscriptionInfo subscriptionInfo) {
-    if (subscriptionInfo.expire == 0) {
-      return appLocalizations.infiniteTime;
-    }
-    return DateTime.fromMillisecondsSinceEpoch(
-      subscriptionInfo.expire * 1000,
-    ).show;
-  }
-
-  List<Widget> _buildFileProfileInfo(BuildContext context) {
-    return [
-      const SizedBox(height: 8),
-      Text(
-        profile.lastUpdateDate?.lastUpdateTimeDesc ?? '',
-        style: context.textTheme.labelMedium?.toLight,
-      ),
-    ];
-  }
-
   // _handleCopyLink(BuildContext context) async {
   //   await Clipboard.setData(
   //     ClipboardData(
@@ -387,9 +447,14 @@ class ProfileItem extends StatelessWidget {
     final res = await globalState.appController.safeRun<bool>(
       () async {
         final file = await profile.getFile();
+        final rawName = (profile.label ?? profile.id).trim();
+        final fileName = (rawName.endsWith('.yaml') || rawName.endsWith('.yml'))
+            ? rawName
+            : '$rawName.yaml';
         final value = await picker.saveFile(
-          profile.label ?? profile.id,
+          fileName,
           await file.readAsBytes(),
+          allowedExtensions: ['yaml', 'yml'],
         );
         if (value == null) return false;
         return true;
@@ -474,22 +539,30 @@ class ProfileItem extends StatelessWidget {
 
   Widget _buildNormalLayout(BuildContext context) {
     final trailingWidget = SizedBox(
-      height: 40,
-      width: 40,
+      height: 36,
+      width: 36,
       child: FadeThroughBox(
         child: profile.isUpdating
-            ? const Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(),
+            ? Padding(
+                padding: const EdgeInsets.all(6),
+                child: SyncedLoading(
+                  size: 24,
+                  child: SpinKitFadingCircle(
+                    color: context.colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
               )
             : CommonPopupBox(
                 popup: CommonPopupMenu(items: _buildMenuItems(context)),
                 targetBuilder: (open) {
                   return IconButton(
+                    padding: EdgeInsets.zero,
                     onPressed: () {
                       open();
                     },
-                    icon: Icon(Icons.more_vert),
+                    tooltip: appLocalizations.more,
+                    icon: const Icon(Icons.more_vert, size: 20),
                   );
                 },
               ),
@@ -497,40 +570,19 @@ class ProfileItem extends StatelessWidget {
     );
     return Stack(
       children: [
-        ListItem(
-          key: Key(profile.id),
-          horizontalTitleGap: 16,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          title: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 52),
-                  child: Text(
-                    profile.label ?? profile.id,
-                    style: context.textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ...switch (profile.type) {
-                      ProfileType.file => _buildFileProfileInfo(context),
-                      ProfileType.url => _buildUrlProfileInfo(context),
-                    },
-                  ],
-                ),
-              ],
-            ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 36),
+                child: _buildTitleRow(context),
+              ),
+              _buildContentInfo(context),
+            ],
           ),
-          tileTitleAlignment: ListTileTitleAlignment.titleHeight,
         ),
         Positioned(top: 6, right: 6, child: trailingWidget),
       ],
@@ -543,37 +595,13 @@ class ProfileItem extends StatelessWidget {
         Expanded(
           child: InkWell(
             onTap: () => onChanged(profile.id),
-            child: ListItem(
-              key: Key(profile.id),
-              horizontalTitleGap: 16,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              title: Container(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      profile.label ?? profile.id,
-                      style: context.textTheme.titleMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ...switch (profile.type) {
-                          ProfileType.file => _buildFileProfileInfo(context),
-                          ProfileType.url => _buildUrlProfileInfo(context),
-                        },
-                      ],
-                    ),
-                  ],
-                ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [_buildTitleRow(context), _buildContentInfo(context)],
               ),
-              tileTitleAlignment: ListTileTitleAlignment.titleHeight,
             ),
           ),
         ),
@@ -637,7 +665,7 @@ class _ReorderableProfilesSheetState extends State<ReorderableProfilesSheet> {
           type: CommonCardType.filled,
           child: ListTile(
             contentPadding: const EdgeInsets.only(right: 44, left: 16),
-            title: Text(profile.label ?? profile.id),
+            title: EmojiText(profile.label ?? profile.id),
           ),
         ),
       ),
@@ -682,7 +710,7 @@ class _ReorderableProfilesSheetState extends State<ReorderableProfilesSheet> {
                 type: CommonCardType.filled,
                 child: ListTile(
                   contentPadding: const EdgeInsets.only(right: 16, left: 16),
-                  title: Text(profile.label ?? profile.id),
+                  title: EmojiText(profile.label ?? profile.id),
                   trailing: ReorderableDragStartListener(
                     index: index,
                     child: const Icon(Icons.drag_handle),

@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/providers/config.dart';
 import 'package:bett_box/state.dart';
-import 'package:bett_box/widgets/list.dart';
-import 'package:flutter/material.dart';
+import 'package:bett_box/widgets/widgets.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 @immutable
@@ -33,92 +34,121 @@ class AboutView extends StatelessWidget {
   }
 
   List<Widget> _buildMoreSection(BuildContext context) {
+    final links = [
+      _LinkTile(
+        title: 'Github Releases',
+        icon: Icons.star,
+        onTap: () =>
+            globalState.openUrl('https://github.com/appshubcc/Bettbox'),
+      ),
+      _LinkTile(
+        title: appLocalizations.checkUpdate,
+        icon: Icons.refresh,
+        external: false,
+        onTap: () => _checkUpdate(context),
+      ),
+      _LinkTile(
+        title: 'Telegram Group',
+        icon: Icons.forum_outlined,
+        onTap: () => globalState.openUrl('https://telegram.me/appshub_chat'),
+      ),
+      _LinkTile(
+        title: 'Channel',
+        icon: Icons.campaign_outlined,
+        onTap: () => globalState.openUrl('https://telegram.me/appshub_channel'),
+      ),
+      _LinkTile(
+        prefix: 'Forked from',
+        title: 'FlClash',
+        icon: Icons.code,
+        onTap: () =>
+            globalState.openUrl('https://github.com/chen08209/FlClash'),
+      ),
+      _LinkTile(
+        prefix: 'Powered by',
+        title: 'Mihomo',
+        icon: Icons.memory,
+        onTap: () => globalState.openUrl('https://github.com/MetaCubeX/mihomo'),
+      ),
+    ];
     return generateSection(
-      separated: false,
       title: appLocalizations.more,
       items: [
-        ListItem(
-          title: Text(appLocalizations.checkUpdate),
-          onTap: () {
-            _checkUpdate(context);
-          },
-        ),
-        ListItem(
-          title: const Text('Github Releases'),
-          onTap: () {
-            globalState.openUrl('https://github.com/appshubcc/Bettbox');
-          },
-          trailing: const Icon(Icons.star),
-        ),
-        ListItem(
-          title: const Text('Telegram Group'),
-          onTap: () {
-            globalState.openUrl('https://telegram.me/appshub_chat');
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-        ListItem(
-          title: const Text('Telegram Channel'),
-          onTap: () {
-            globalState.openUrl('https://telegram.me/appshub_channel');
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-        ListItem(
-          title: const Text('FlClash'),
-          onTap: () {
-            globalState.openUrl('https://github.com/chen08209/FlClash');
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-        ListItem(
-          title: const Text('Mihomo'),
-          onTap: () {
-            globalState.openUrl('https://github.com/MetaCubeX/mihomo');
-          },
-          trailing: const Icon(Icons.launch),
-        ),
+        for (var i = 0; i < links.length; i += 2)
+          _LinkGridRow(left: links[i], right: links[i + 1]),
       ],
     );
   }
 
   List<Widget> _buildContributorsSection() {
-    const contributors = [
-      Contributor(avatar: 'assets/images/avatars/june2.jpg', name: 'June2'),
-      Contributor(avatar: 'assets/images/avatars/arue.jpg', name: 'Arue'),
-      Contributor(avatar: 'assets/images/avatars/dabaozi.jpg', name: '大包子'),
-      Contributor(avatar: 'assets/images/avatars/xiaolou.jpg', name: '小楼'),
-      Contributor(avatar: 'assets/images/avatars/www.jpg', name: 'Www'),
-      Contributor(
+    final contributors = [
+      const Contributor(
+        avatar: 'assets/images/avatars/june2.jpg',
+        name: 'June2',
+      ),
+      const Contributor(avatar: 'assets/images/avatars/arue.jpg', name: 'Arue'),
+      const Contributor(
+        avatar: 'assets/images/avatars/dabaozi.jpg',
+        name: '大包子',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/xiaolou.png',
+        name: '小楼',
+      ),
+      const Contributor(avatar: 'assets/images/avatars/www.jpg', name: 'Www'),
+      const Contributor(
         avatar: 'assets/images/avatars/AIsouler.jpg',
         name: 'AIsouler',
       ),
-      Contributor(
+      const Contributor(
         avatar: 'assets/images/avatars/songchenwen.jpg',
         name: 'songchenwen',
       ),
-      Contributor(
+      const Contributor(
         avatar: 'assets/images/avatars/EriDeLee.jpg',
         name: 'EriDeLee',
       ),
-    ];
+      const Contributor(
+        avatar: 'assets/images/avatars/AdySnowflake.png',
+        name: 'AdySnowflake',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/CyberVacation.jpg',
+        name: 'CyberVacation',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/VillagerTom.png',
+        name: 'VillagerTom',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/ZeonX.jpg',
+        name: 'ZeonX',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/feitianmoo.png',
+        name: 'feitianmoo',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/kouhe3.jpg',
+        name: 'kouhe3',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/soffchen.png',
+        name: 'soffchen',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/utafrali.jpg',
+        name: 'utafrali',
+      ),
+      const Contributor(
+        avatar: 'assets/images/avatars/wfion.png',
+        name: 'wfion',
+      ),
+    ]..shuffle();
     return generateSection(
       separated: false,
       title: appLocalizations.otherContributors,
-      items: [
-        ListItem(
-          title: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Wrap(
-              spacing: 24,
-              children: [
-                for (final contributor in contributors)
-                  Avatar(contributor: contributor),
-              ],
-            ),
-          ),
-        ),
-      ],
+      items: [ListItem(title: _ContributorsRow(contributors: contributors))],
     );
   }
 
@@ -140,8 +170,8 @@ class AboutView extends StatelessWidget {
                         padding: const EdgeInsets.all(12),
                         child: Image.asset(
                           'assets/images/icon.png',
-                          width: 64,
-                          height: 64,
+                          width: 48,
+                          height: 48,
                         ),
                       ),
                       Column(
@@ -252,5 +282,180 @@ class _DeveloperModeDetectorState extends State<_DeveloperModeDetector> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(onTap: _handleTap, child: widget.child);
+  }
+}
+
+class _ContributorsRow extends StatefulWidget {
+  final List<Contributor> contributors;
+
+  const _ContributorsRow({required this.contributors});
+
+  @override
+  State<_ContributorsRow> createState() => _ContributorsRowState();
+}
+
+class _ContributorsRowState extends State<_ContributorsRow> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Shader _createEdgeShader(Rect rect) {
+    final position = _controller.hasClients ? _controller.position : null;
+    final hasBefore = position != null && position.extentBefore > 0;
+    final hasAfter = position == null || position.extentAfter > 0;
+    return LinearGradient(
+      colors: [
+        hasBefore ? Colors.transparent : Colors.white,
+        Colors.white,
+        Colors.white,
+        hasAfter ? Colors.transparent : Colors.white,
+      ],
+      stops: const [0, 0.1, 0.9, 1],
+    ).createShader(rect);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        scrollbars: false,
+        dragDevices: PointerDeviceKind.values.toSet(),
+      ),
+      child: MediaQuery.removePadding(
+        context: context,
+        removeLeft: true,
+        removeTop: true,
+        removeRight: true,
+        removeBottom: true,
+        child: Scrollbar(
+          controller: _controller,
+          thumbVisibility: true,
+          thickness: 4,
+          radius: const Radius.circular(2),
+          child: ShaderMask(
+            shaderCallback: _createEdgeShader,
+            blendMode: BlendMode.dstIn,
+            child: SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Wrap(
+                spacing: 24,
+                children: [
+                  for (final contributor in widget.contributors)
+                    Avatar(contributor: contributor),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LinkGridRow extends StatelessWidget {
+  final _LinkTile left;
+  final _LinkTile right;
+
+  const _LinkGridRow({required this.left, required this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.colorScheme;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: left),
+          VerticalDivider(
+            width: 1,
+            thickness: 1,
+            indent: 10,
+            endIndent: 10,
+            color: colorScheme.outlineVariant.withValues(
+              alpha: colorScheme.brightness == Brightness.light ? 0.6 : 0.45,
+            ),
+          ),
+          Expanded(child: right),
+        ],
+      ),
+    );
+  }
+}
+
+class _LinkTile extends StatelessWidget {
+  final String? prefix;
+  final String title;
+  final IconData icon;
+  final bool external;
+  final VoidCallback onTap;
+
+  const _LinkTile({
+    this.prefix,
+    required this.title,
+    required this.icon,
+    this.external = true,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.colorScheme;
+    final prefix = this.prefix;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.opacity12,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 19, color: colorScheme.primary),
+                ),
+                const Spacer(),
+                Icon(
+                  external ? Icons.arrow_outward : Icons.arrow_forward,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant.opacity50,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(
+                children: [
+                  if (prefix != null)
+                    TextSpan(
+                      text: '$prefix ',
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.opacity80,
+                      ),
+                    ),
+                  TextSpan(text: title),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

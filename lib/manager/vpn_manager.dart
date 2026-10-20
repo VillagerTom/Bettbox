@@ -3,7 +3,7 @@ import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/providers/app.dart';
 import 'package:bett_box/providers/state.dart';
 import 'package:bett_box/state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class VpnManager extends ConsumerStatefulWidget {
@@ -40,7 +40,14 @@ class _VpnContainerState extends ConsumerState<VpnManager> {
         networkSpeedNotification: nextProps.networkSpeedNotification,
       ) == nextProps;
       
-      if (onlySmartAutoStopChanged || onlyQuickResponseChanged || onlyNetworkSpeedChanged) {
+      final onlyHighPriorityNotificationChanged = prevProps.copyWith(
+        highPriorityNotification: nextProps.highPriorityNotification,
+      ) == nextProps;
+      
+      if (onlySmartAutoStopChanged ||
+          onlyQuickResponseChanged ||
+          onlyNetworkSpeedChanged ||
+          onlyHighPriorityNotificationChanged) {
         return; // No tip needed
       }
       
@@ -54,9 +61,8 @@ class _VpnContainerState extends ConsumerState<VpnManager> {
         globalState.showNotifier(
           appLocalizations.vpnTip,
           onAction: () async {
-            await globalState.appController.updateStatus(false);
-            await Future.delayed(const Duration(milliseconds: 500));
-            await globalState.appController.updateStatus(true);
+            await globalState.appController.restartCore();
+            globalState.showNotifier(appLocalizations.success);
           },
           actionLabel: appLocalizations.restart,
           showCountdown: true,

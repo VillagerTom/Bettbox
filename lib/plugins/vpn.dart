@@ -8,6 +8,10 @@ import 'package:flutter/services.dart';
 
 abstract mixin class VpnListener {
   void onDnsChanged(String dns) {}
+
+  void onScreenStateChanged(bool isOn) {}
+
+  void onNetworkChanged() {}
 }
 
 class Vpn {
@@ -31,9 +35,16 @@ class Vpn {
           }
           break;
         case 'screenStateChanged':
-          globalState.appState = globalState.appState.copyWith(
-            isScreenOn: call.arguments as bool,
-          );
+          final isOn = call.arguments as bool;
+          globalState.isScreenOn = isOn;
+          for (final listener in _listeners) {
+            listener.onScreenStateChanged(isOn);
+          }
+          break;
+        case 'networkChanged':
+          for (final listener in _listeners) {
+            listener.onNetworkChanged();
+          }
           break;
         default:
       }
@@ -59,6 +70,17 @@ class Vpn {
         const [];
   }
 
+  Future<List<String>> getLocalGateways() async {
+    return await methodChannel.invokeListMethod<String>(
+          'getLocalGateways',
+        ) ??
+        const [];
+  }
+
+  Future<String?> getCurrentDns() =>
+      methodChannel.invokeMethod<String>('getCurrentDns');
+
+
   Future<void> setSmartStopped(bool value) async {
     await methodChannel.invokeMethod<bool>('setSmartStopped', {'value': value});
   }
@@ -77,6 +99,16 @@ class Vpn {
 
   Future<bool> getStatus() async {
     return await methodChannel.invokeMethod<bool>('status') ?? false;
+  }
+
+  Future<void> updateNotificationSpeed(
+    String profileName,
+    String speedInfo,
+  ) async {
+    await methodChannel.invokeMethod<void>('updateNotificationSpeed', {
+      'profileName': profileName,
+      'speedInfo': speedInfo,
+    });
   }
 
   void addListener(VpnListener listener) => _listeners.add(listener);

@@ -21,6 +21,7 @@ const defaultGeoXUrl = GeoXUrl();
 
 const defaultMixedPort = 7890;
 const defaultKeepAliveInterval = 30;
+const defaultSkipAuthPrefixes = ['127.0.0.1/8', '::1/128'];
 
 const defaultBypassPrivateRouteAddress = [
   '198.51.100.0/30',
@@ -71,6 +72,17 @@ const defaultBypassPrivateRouteAddress = [
   '200.0.0.0/5',
   '208.0.0.0/4',
   '2000::/3',
+];
+
+const defaultDesktopBypassPrivateRouteAddress = [
+  '127.0.0.0/8',
+  '::1/128',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '169.254.0.0/16',
+  'fd00::/8',
+  'fe80::/10',
 ];
 
 int? _parseInt(dynamic value) {
@@ -274,7 +286,10 @@ abstract class Tun with _$Tun {
     @Default(false) bool enable,
     @Default(tunDeviceName) String device,
     @JsonKey(name: 'auto-route') @Default(false) bool autoRoute,
-    @Default(TunStack.system) TunStack stack,
+    @Default(TunStack.mips) TunStack stack,
+    @JsonKey(name: 'congestion-controller')
+    @Default(CongestionController.bbr3)
+    CongestionController congestionController,
     @JsonKey(name: 'dns-hijack') @Default(['any:53']) List<String> dnsHijack,
     @JsonKey(name: 'route-address') @Default([]) List<String> routeAddress,
     @JsonKey(name: 'route-exclude-address')
@@ -284,10 +299,11 @@ abstract class Tun with _$Tun {
     @JsonKey(name: 'disable-icmp-forwarding')
     @Default(true)
     bool disableIcmpForwarding,
-    @Default(4064) int mtu,
+    @Default(9000) int mtu,
     @JsonKey(name: 'endpoint-independent-nat')
     @Default(false)
     bool endpointIndependentNat,
+    @JsonKey(name: 'auto-redirect') @Default(false) bool autoRedirect,
   }) = _Tun;
 
   factory Tun.fromJson(Map<String, Object?> json) => _$TunFromJson(json);
@@ -309,26 +325,22 @@ extension TunExt on Tun {
     bool bypassPrivateRoute, {
     String? fakeIpRange,
     String? fakeIpRangeV6,
+    List<String>? bypassPrivateRouteAddress,
   }) {
     if (system.isDesktop) {
       if (bypassPrivateRoute) {
         return copyWith(
           autoRoute: true,
+          autoRedirect: system.isLinux,
           routeAddress: [],
-          routeExcludeAddress: [
-            '127.0.0.0/8',
-            '::1/128',
-            '10.0.0.0/8',
-            '172.16.0.0/12',
-            '192.168.0.0/16',
-            '169.254.0.0/16',
-            'fd00::/8',
-            'fe80::/10',
-          ],
+          routeExcludeAddress:
+              bypassPrivateRouteAddress ??
+              defaultDesktopBypassPrivateRouteAddress,
         );
       }
       return copyWith(
         autoRoute: true,
+        autoRedirect: system.isLinux,
         routeAddress: [],
         routeExcludeAddress: [],
       );
@@ -337,7 +349,9 @@ extension TunExt on Tun {
     if (bypassPrivateRoute) {
       return copyWith(
         autoRoute: true,
-        routeAddress: List<String>.from(defaultBypassPrivateRouteAddress),
+        routeAddress: List<String>.from(
+          bypassPrivateRouteAddress ?? defaultBypassPrivateRouteAddress,
+        ),
       );
     }
 
@@ -403,7 +417,7 @@ abstract class Dns with _$Dns {
     Map<String, String> nameserverPolicy,
     @Default(['1.1.1.1']) List<String> nameserver,
     @Default([]) List<String> fallback,
-    @Default(['https://doh.pub/dns-query#DIRECT'])
+    @Default(['tls://223.6.6.6#DIRECT', 'https://doh.pub/dns-query#DIRECT'])
     @JsonKey(name: 'proxy-server-nameserver')
     List<String> proxyServerNameserver,
     @Default([])
@@ -428,6 +442,14 @@ abstract class Dns with _$Dns {
     } catch (_) {
       return const Dns();
     }
+  }
+}
+
+extension DnsExt on Dns {
+  String effectiveFakeIpRangeV6({required bool ipv6Enabled}) {
+    if (fakeIpRangeV6.isNotEmpty) return fakeIpRangeV6;
+    if (ipv6Enabled) return '2001:2::1/48';
+    return '';
   }
 }
 
@@ -478,19 +500,15 @@ abstract class Experimental with _$Experimental {
 abstract class GeoXUrl with _$GeoXUrl {
   const factory GeoXUrl({
     @Default(
-      'https://fastly.jsdelivr.net/gh/appshubcc/bett-rules@release/geoip.metadb',
+      'https://github.com/appshubcc/bett-rules/releases/download/latest/geoip.metadb',
     )
     String mmdb,
     @Default(
-      'https://fastly.jsdelivr.net/gh/appshubcc/bett-rules@release/GeoLite2-ASN.mmdb',
+      'https://github.com/appshubcc/bett-rules/releases/download/latest/GeoLite2-ASN.mmdb',
     )
     String asn,
     @Default(
-      'https://fastly.jsdelivr.net/gh/appshubcc/bett-rules@release/geoip.dat',
-    )
-    String geoip,
-    @Default(
-      'https://fastly.jsdelivr.net/gh/appshubcc/bett-rules@release/geosite.dat',
+      'https://github.com/appshubcc/bett-rules/releases/download/latest/geosite.dat',
     )
     String geosite,
   }) = _GeoXUrl;
@@ -523,40 +541,86 @@ abstract class ParsedRule with _$ParsedRule {
   }) = _ParsedRule;
 
   factory ParsedRule.parseString(String value) {
-    final splits = value.split(',');
-    final shortSplits = splits
-        .where((item) => !item.contains('src') && !item.contains('no-resolve'))
-        .toList();
+    var raw = value.trim();
+    bool noResolve = false;
+    bool src = false;
+
+    while (true) {
+      if (raw.endsWith(',no-resolve')) {
+        noResolve = true;
+        raw = raw.substring(0, raw.length - ',no-resolve'.length).trim();
+      } else if (raw.endsWith(',src')) {
+        src = true;
+        raw = raw.substring(0, raw.length - ',src'.length).trim();
+      } else {
+        break;
+      }
+    }
+
+    final firstComma = raw.indexOf(',');
+    if (firstComma == -1) {
+      final action = RuleAction.values.firstWhere(
+        (item) => item.value == raw,
+        orElse: () => RuleAction.MATCH,
+      );
+      return ParsedRule(ruleAction: action, noResolve: noResolve, src: src);
+    }
+
+    final actionStr = raw.substring(0, firstComma).trim();
     final ruleAction = RuleAction.values.firstWhere(
-      (item) => item.value == shortSplits.first,
+      (item) => item.value == actionStr,
       orElse: () => RuleAction.DOMAIN,
     );
+
+    final rest = raw.substring(firstComma + 1).trim();
+
+    if (ruleAction == RuleAction.MATCH) {
+      return ParsedRule(
+        ruleAction: ruleAction,
+        ruleTarget: rest,
+        noResolve: noResolve,
+        src: src,
+      );
+    }
+
+    final lastComma = rest.lastIndexOf(',');
+    if (lastComma == -1) {
+      return ParsedRule(
+        ruleAction: ruleAction,
+        content: ruleAction != RuleAction.RULE_SET ? rest : null,
+        ruleProvider: ruleAction == RuleAction.RULE_SET ? rest : null,
+        noResolve: noResolve,
+        src: src,
+      );
+    }
+
+    final mainContent = rest.substring(0, lastComma).trim();
+    final targetStr = rest.substring(lastComma + 1).trim();
+
     String? subRule;
     String? ruleTarget;
-
     if (ruleAction == RuleAction.SUB_RULE) {
-      subRule = shortSplits.last;
+      subRule = targetStr;
     } else {
-      ruleTarget = shortSplits.last;
+      ruleTarget = targetStr;
     }
 
     String? content;
     String? ruleProvider;
-
     if (ruleAction == RuleAction.RULE_SET) {
-      ruleProvider = shortSplits.sublist(1, shortSplits.length - 1).join(',');
+      ruleProvider = mainContent;
     } else {
-      content = shortSplits.sublist(1, shortSplits.length - 1).join(',');
+      content = mainContent;
     }
 
     return ParsedRule(
       ruleAction: ruleAction,
       content: content,
-      src: splits.contains('src'),
       ruleProvider: ruleProvider,
-      noResolve: splits.contains('no-resolve'),
       subRule: subRule,
       ruleTarget: ruleTarget,
+      noResolve: noResolve,
+      src: src,
     );
   }
 }
@@ -564,17 +628,23 @@ abstract class ParsedRule with _$ParsedRule {
 extension ParsedRuleExt on ParsedRule {
   String get value {
     if (ruleAction == RuleAction.MATCH) {
-      return [ruleAction.value, ruleTarget].join(',');
+      return [
+        ruleAction.value,
+        ruleTarget,
+      ].where((e) => e != null && e.isNotEmpty).join(',');
     }
-    return [
+    final target = ruleAction == RuleAction.SUB_RULE ? subRule : ruleTarget;
+    final main = ruleAction == RuleAction.RULE_SET ? ruleProvider : content;
+    final parts = <String>[
       ruleAction.value,
-      ruleAction == RuleAction.RULE_SET ? ruleProvider : content,
-      ruleAction == RuleAction.SUB_RULE ? subRule : ruleTarget,
+      if (main != null && main.isNotEmpty) main,
+      if (target != null && target.isNotEmpty) target,
       if (ruleAction.hasParams) ...[
         if (src) 'src',
         if (noResolve) 'no-resolve',
       ],
-    ].join(',');
+    ];
+    return parts.join(',');
   }
 }
 
@@ -604,12 +674,16 @@ List<Rule> _genRule(List<dynamic>? rules) {
   return rules.map((item) => Rule.value(item)).toList();
 }
 
-List<RuleProvider> _genRuleProviders(Map<String, dynamic> json) {
-  return json.entries.map((entry) => RuleProvider(name: entry.key)).toList();
+List<RuleProvider> _genRuleProviders(Map json) {
+  return json.entries
+      .map((entry) => RuleProvider(name: entry.key.toString()))
+      .toList();
 }
 
-List<SubRule> _genSubRules(Map<String, dynamic> json) {
-  return json.entries.map((entry) => SubRule(name: entry.key)).toList();
+List<SubRule> _genSubRules(Map json) {
+  return json.entries
+      .map((entry) => SubRule(name: entry.key.toString()))
+      .toList();
 }
 
 @freezed
@@ -629,6 +703,16 @@ abstract class ClashConfigSnippet with _$ClashConfigSnippet {
       _$ClashConfigSnippetFromJson(json);
 }
 
+extension ClashConfigExt on ClashConfig {
+  String get listenPorts => {
+    mixedPort,
+    port,
+    socksPort,
+    redirPort,
+    tproxyPort,
+  }.where((port) => port > 0).join('/');
+}
+
 @freezed
 abstract class ClashConfig with _$ClashConfig {
   const factory ClashConfig({
@@ -639,6 +723,10 @@ abstract class ClashConfig with _$ClashConfig {
     @Default(0) @JsonKey(name: 'tproxy-port') int tproxyPort,
     @Default(Mode.rule) Mode mode,
     @Default(false) @JsonKey(name: 'allow-lan') bool allowLan,
+    @Default([]) List<String> authentication,
+    @Default(defaultSkipAuthPrefixes)
+    @JsonKey(name: 'skip-auth-prefixes')
+    List<String> skipAuthPrefixes,
     @Default(LogLevel.error) @JsonKey(name: 'log-level') LogLevel logLevel,
     @Default(false) bool ipv6,
     @Default(FindProcessMode.off)
@@ -685,12 +773,16 @@ abstract class ClashConfig with _$ClashConfig {
 
   factory ClashConfig.safeFormJson(Map<String, Object?>? json) {
     if (json == null) {
-      return defaultClashConfig;
+      return system.isAndroid
+          ? const ClashConfig(findProcessMode: FindProcessMode.always)
+          : defaultClashConfig;
     }
     try {
       return ClashConfig.fromJson(json);
     } catch (_) {
-      return defaultClashConfig;
+      return system.isAndroid
+          ? const ClashConfig(findProcessMode: FindProcessMode.always)
+          : defaultClashConfig;
     }
   }
 }

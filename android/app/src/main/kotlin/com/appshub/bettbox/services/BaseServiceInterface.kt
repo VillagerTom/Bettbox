@@ -21,18 +21,24 @@ import kotlinx.coroutines.withContext
 import android.content.ComponentName
 import android.content.Intent
 
+import android.graphics.BitmapFactory
+
 interface BaseServiceInterface {
     suspend fun start(options: VpnOptions): Int
     fun stop()
     suspend fun startForeground()
 }
 
-suspend fun Service.createBettboxNotificationBuilder(): NotificationCompat.Builder =
+suspend fun Service.createBettboxNotificationBuilder(
+    isSuspended: Boolean = GlobalState.isSmartStopped,
+    isHighPriority: Boolean = GlobalState.isNotificationHighPriority
+): NotificationCompat.Builder =
     withContext(Dispatchers.IO) {
         val defaultComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivity")
         val lightComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivityLight")
+        val darkComponent = ComponentName(packageName, "com.appshub.bettbox.MainActivityDark")
 
-        val targetComponent = NotificationComponentCache.get(packageManager, defaultComponent, lightComponent)
+        val targetComponent = NotificationComponentCache.get(packageManager, defaultComponent, lightComponent, darkComponent)
 
         android.util.Log.d("Notification", "Using ${targetComponent.className}")
 
@@ -52,8 +58,29 @@ suspend fun Service.createBettboxNotificationBuilder(): NotificationCompat.Build
             PendingIntent.getActivity(this@createBettboxNotificationBuilder, 0, intent, flags)
         }
 
-        NotificationCompat.Builder(this@createBettboxNotificationBuilder, GlobalState.NOTIFICATION_CHANNEL).apply {
+        val isDark = targetComponent == darkComponent
+        val largeIconRes = if (isDark) {
+            R.mipmap.ic_launcher
+        } else {
+            R.mipmap.ic_launcher_light
+        }
+
+        val largeIconBitmap = runCatching {
+            BitmapFactory.decodeResource(resources, largeIconRes)
+        }.getOrNull()
+
+        val channelId = when {
+            isSuspended -> GlobalState.NOTIFICATION_CHANNEL_SUSPENDED
+            isHighPriority -> GlobalState.NOTIFICATION_CHANNEL_HIGH
+            else -> GlobalState.NOTIFICATION_CHANNEL
+        }
+        val priority = if (isSuspended || isHighPriority) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW
+
+        NotificationCompat.Builder(this@createBettboxNotificationBuilder, channelId).apply {
             setSmallIcon(R.drawable.ic)
+            if (largeIconBitmap != null) {
+                setLargeIcon(largeIconBitmap)
+            }
             setContentTitle("Bettbox")
             setContentIntent(pendingIntent)
             setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -63,24 +90,47 @@ suspend fun Service.createBettboxNotificationBuilder(): NotificationCompat.Build
             setOngoing(true)
             setShowWhen(true)
             setOnlyAlertOnce(true)
-            setPriority(NotificationCompat.PRIORITY_HIGH)
+            setPriority(priority)
         }
     }
 
-fun Service.ensureNotificationChannel() {
+fun Service.ensureNotificationChannel(
+    isSuspended: Boolean = GlobalState.isSmartStopped,
+    isHighPriority: Boolean = GlobalState.isNotificationHighPriority
+) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-    val manager = getSystemService(NotificationManager::class.java)
-    val channel = manager?.getNotificationChannel(GlobalState.NOTIFICATION_CHANNEL)
-    if (channel == null || channel.importance != NotificationManager.IMPORTANCE_LOW) {
-        manager?.createNotificationChannel(
-            NotificationChannel(GlobalState.NOTIFICATION_CHANNEL, "Bettbox Service", NotificationManager.IMPORTANCE_LOW)
-        )
+    val manager = getSystemService(NotificationManager::class.java) ?: return
+    val channelId = when {
+        isSuspended -> GlobalState.NOTIFICATION_CHANNEL_SUSPENDED
+        isHighPriority -> GlobalState.NOTIFICATION_CHANNEL_HIGH
+        else -> GlobalState.NOTIFICATION_CHANNEL
+    }
+    val channel = manager.getNotificationChannel(channelId)
+    if (channel == null) {
+        val importance = when {
+            isSuspended -> NotificationManager.IMPORTANCE_DEFAULT
+            isHighPriority -> NotificationManager.IMPORTANCE_HIGH
+            else -> NotificationManager.IMPORTANCE_LOW
+        }
+        val name = when {
+            isSuspended -> "Bettbox Suspended Service"
+            isHighPriority -> "Bettbox High Priority Service"
+            else -> "Bettbox Service"
+        }
+        val newChannel = NotificationChannel(channelId, name, importance).apply {
+            setShowBadge(false)
+            if (isSuspended || isHighPriority) {
+                setSound(null, null)
+                enableVibration(false)
+            }
+        }
+        manager.createNotificationChannel(newChannel)
     }
 }
 
 @SuppressLint("ForegroundServiceType")
 fun Service.startForeground(notification: Notification, useSpecialType: Boolean = true) {
-    ensureNotificationChannel()
+    ensureNotificationChannel(GlobalState.isSmartStopped, GlobalState.isNotificationHighPriority)
 
     val type = if (Build.VERSION.SDK_INT >= 34 && useSpecialType && !GlobalState.isSmartStopped) {
         android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -96,6 +146,10 @@ fun Service.startForeground(notification: Notification, useSpecialType: Boolean 
         }
     }.onFailure {
         android.util.Log.e("BaseServiceInterface", "startForeground failed: ${it.message}")
-        startForeground(GlobalState.NOTIFICATION_ID, notification)
+        runCatching {
+            startForeground(GlobalState.NOTIFICATION_ID, notification)
+        }.onFailure { fallbackErr ->
+            android.util.Log.e("BaseServiceInterface", "startForeground fallback failed: ${fallbackErr.message}")
+        }
     }
 }

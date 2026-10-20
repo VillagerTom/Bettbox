@@ -8,9 +8,10 @@ import 'package:bett_box/plugins/app.dart';
 import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 // Force refresh icon flag
 final forceRefreshIconProvider = StateProvider<bool>((ref) => false);
@@ -39,7 +40,22 @@ class _AccessViewState extends ConsumerState<AccessView>
     _updateInitList();
     _controller = ScrollController();
     WidgetsBinding.instance.addObserver(this);
-    _checkPermissionAndLoadPackages(interactive: true);
+    _prefetchPackages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.afterRouteTransition(() {
+        if (!mounted) return;
+        _checkPermissionAndLoadPackages(interactive: true);
+      });
+    });
+  }
+
+  Future<void> _prefetchPackages() async {
+    if (ref.read(packagesProvider).isNotEmpty) return;
+    try {
+      if (!await app.hasPackageListPermission()) return;
+      await app.getPackages();
+    } catch (_) {}
   }
 
   @override
@@ -399,10 +415,21 @@ class _AccessViewState extends ConsumerState<AccessView>
       valueList.remove(package.packageName);
     }
     ref.read(vpnSettingProvider.notifier).updateState((state) {
+      final currentManualList = state.accessControl.manualList;
+      final newManualList =
+          value == false && currentManualList.contains(package.packageName)
+          ? currentManualList.where((e) => e != package.packageName).toList()
+          : currentManualList;
       return switch (state.accessControl.mode ==
           AccessControlMode.acceptSelected) {
-        true => state.copyWith.accessControl(acceptList: valueList),
-        false => state.copyWith.accessControl(rejectList: valueList),
+        true => state.copyWith.accessControl(
+          acceptList: valueList,
+          manualList: newManualList,
+        ),
+        false => state.copyWith.accessControl(
+          rejectList: valueList,
+          manualList: newManualList,
+        ),
       };
     });
   }
@@ -421,8 +448,8 @@ class _AccessViewState extends ConsumerState<AccessView>
     final packageNameList = packages.map((e) => e.packageName).toList();
     final valueList = currentList.intersection(packageNameList);
     final describe = accessControlMode == AccessControlMode.acceptSelected
-        ? appLocalizations.accessControlAllowDesc
-        : appLocalizations.accessControlNotAllowDesc;
+        ? '${appLocalizations.accessControlAllowDesc} (${appLocalizations.whitelistMode})'
+        : '${appLocalizations.accessControlNotAllowDesc} (${appLocalizations.blacklistMode})';
 
     return Column(
       mainAxisSize: MainAxisSize.max,
@@ -551,7 +578,12 @@ class _AccessViewState extends ConsumerState<AccessView>
                     future: _completer.future,
                     builder: (_, snapshot) {
                       if (snapshot.connectionState != ConnectionState.done) {
-                        return Center(child: CircularProgressIndicator());
+                        return const Center(
+                          child: SyncedLoading(
+                            size: 40,
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
                       }
                       if (_packageListPermissionDenied) {
                         return _buildPackageListPermissionDeniedView();
@@ -639,49 +671,57 @@ class PackageListItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final forceRefresh = ref.watch(forceRefreshIconProvider);
 
-    return ActivateBox(
-      active: isActive,
-      child: ListItem.checkbox(
-        leading: SizedBox(
-          width: 48,
-          height: 48,
-          child: FutureBuilder<Uint8List?>(
-            future: app.getPackageIcon(
-              package.packageName,
-              forceRefresh: forceRefresh,
-            ),
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data != null) {
-                final devicePixelRatio = MediaQuery.of(
-                  context,
-                ).devicePixelRatio;
-                final cacheSize = (48 * devicePixelRatio).ceil();
+    return GestureDetector(
+      onLongPress: () {
+        Clipboard.setData(ClipboardData(text: package.packageName));
+        globalState.showNotifier(
+          '${appLocalizations.copiedPackageName}: ${package.packageName}',
+        );
+      },
+      child: ActivateBox(
+        active: isActive,
+        child: ListItem.checkbox(
+          leading: SizedBox(
+            width: 48,
+            height: 48,
+            child: FutureBuilder<Uint8List?>(
+              future: app.getPackageIcon(
+                package.packageName,
+                forceRefresh: forceRefresh,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null) {
+                  final devicePixelRatio = MediaQuery.of(
+                    context,
+                  ).devicePixelRatio;
+                  final cacheSize = (48 * devicePixelRatio).ceil();
 
-                return Image.memory(
-                  snapshot.data!,
-                  gaplessPlayback: true,
-                  width: 48,
-                  height: 48,
-                  cacheWidth: cacheSize,
-                  cacheHeight: cacheSize,
-                  errorBuilder: (_, _, _) => _buildDefaultIcon(context),
-                );
-              }
-              return _buildDefaultIcon(context);
-            },
+                  return Image.memory(
+                    snapshot.data!,
+                    gaplessPlayback: true,
+                    width: 48,
+                    height: 48,
+                    cacheWidth: cacheSize,
+                    cacheHeight: cacheSize,
+                    errorBuilder: (_, _, _) => _buildDefaultIcon(context),
+                  );
+                }
+                return _buildDefaultIcon(context);
+              },
+            ),
           ),
+          title: EmojiText(
+            package.label,
+            style: const TextStyle(overflow: TextOverflow.ellipsis),
+            maxLines: 1,
+          ),
+          subtitle: Text(
+            package.packageName,
+            style: const TextStyle(overflow: TextOverflow.ellipsis),
+            maxLines: 1,
+          ),
+          delegate: CheckboxDelegate(value: value, onChanged: onChanged),
         ),
-        title: Text(
-          package.label,
-          style: const TextStyle(overflow: TextOverflow.ellipsis),
-          maxLines: 1,
-        ),
-        subtitle: Text(
-          package.packageName,
-          style: const TextStyle(overflow: TextOverflow.ellipsis),
-          maxLines: 1,
-        ),
-        delegate: CheckboxDelegate(value: value, onChanged: onChanged),
       ),
     );
   }
@@ -749,10 +789,21 @@ class AccessControlSearchDelegate extends SearchDelegate {
       valueList.remove(package.packageName);
     }
     ref.read(vpnSettingProvider.notifier).updateState((state) {
+      final currentManualList = state.accessControl.manualList;
+      final newManualList =
+          value == false && currentManualList.contains(package.packageName)
+          ? currentManualList.where((e) => e != package.packageName).toList()
+          : currentManualList;
       return switch (state.accessControl.mode ==
           AccessControlMode.acceptSelected) {
-        true => state.copyWith.accessControl(acceptList: valueList),
-        false => state.copyWith.accessControl(rejectList: valueList),
+        true => state.copyWith.accessControl(
+          acceptList: valueList,
+          manualList: newManualList,
+        ),
+        false => state.copyWith.accessControl(
+          rejectList: valueList,
+          manualList: newManualList,
+        ),
       };
     });
   }
@@ -851,22 +902,23 @@ class _AccessControlPanelState extends ConsumerState<AccessControlPanel> {
   String _getTextWithAccessSortType(AccessSortType type) {
     return switch (type) {
       AccessSortType.none => appLocalizations.defaultText,
-      AccessSortType.name => appLocalizations.name,
-      AccessSortType.time => appLocalizations.time,
+      AccessSortType.installTime => appLocalizations.installTime,
+      AccessSortType.updateTime => appLocalizations.updateTime,
     };
   }
 
   IconData _getIconWithProxiesSortType(AccessSortType type) {
     return switch (type) {
       AccessSortType.none => Icons.sort,
-      AccessSortType.name => Icons.sort_by_alpha,
-      AccessSortType.time => Icons.timeline,
+      AccessSortType.installTime => Icons.install_mobile,
+      AccessSortType.updateTime => Icons.update,
     };
   }
 
   List<Widget> _buildModeSetting() {
     return generateSection(
       plain: true,
+      isFirst: true,
       title: appLocalizations.mode,
       items: [
         SingleChildScrollView(
@@ -1021,18 +1073,28 @@ class _AccessControlPanelState extends ConsumerState<AccessControlPanel> {
       try {
         newAccessControl = AccessControl.fromJson(json.decode(text));
       } catch (_) {
+        final packageNameRegex = RegExp(r'^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+$');
         final packages = text
-            .split('\n')
+            .split(RegExp(r'[\n,\s]+'))
             .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
+            .where((e) => packageNameRegex.hasMatch(e))
             .toList();
 
         final currentState = ref.read(vpnSettingProvider).accessControl;
         final isAccept = currentState.mode == AccessControlMode.acceptSelected;
+        final currentList = isAccept
+            ? currentState.acceptList
+            : currentState.rejectList;
+        final newList = {...currentList, ...packages}.toList();
+        final newManualList = {
+          ...currentState.manualList,
+          ...packages,
+        }.toList();
 
         newAccessControl = currentState.copyWith(
-          acceptList: isAccept ? packages : currentState.acceptList,
-          rejectList: !isAccept ? packages : currentState.rejectList,
+          acceptList: isAccept ? newList : currentState.acceptList,
+          rejectList: !isAccept ? newList : currentState.rejectList,
+          manualList: newManualList,
         );
       }
 
@@ -1083,18 +1145,21 @@ class _AccessControlPanelState extends ConsumerState<AccessControlPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ..._buildModeSetting(),
-            ..._buildSortSetting(),
-            ..._buildSourceSetting(),
-            ..._buildActionSetting(),
-          ],
+    return ScrollEdgeRise(
+      builder: (_, rise) => SingleChildScrollView(
+        padding: EdgeInsets.only(top: 8 + rise),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ..._buildModeSetting(),
+              ..._buildSortSetting(),
+              ..._buildSourceSetting(),
+              ..._buildActionSetting(),
+            ],
+          ),
         ),
       ),
     );

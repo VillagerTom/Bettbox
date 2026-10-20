@@ -1,8 +1,9 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
+import 'package:bett_box/models/models.dart';
 import 'package:bett_box/providers/config.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class OverrideItem extends ConsumerWidget {
@@ -215,23 +216,28 @@ class FakeIpRangeV6Item extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
-    final fakeIpRangeV6 = ref.watch(
-      patchClashConfigProvider.select((state) => state.dns.fakeIpRangeV6),
+    final (dns, ipv6) = ref.watch(
+      patchClashConfigProvider.select((state) => (state.dns, state.ipv6)),
     );
+    final fakeIpRangeV6 = dns.fakeIpRangeV6;
+    final displaySubtitle = fakeIpRangeV6.isNotEmpty
+        ? fakeIpRangeV6
+        : dns.effectiveFakeIpRangeV6(ipv6Enabled: ipv6);
+
     return ListItem.input(
       title: Text(appLocalizations.fakeipRangeV6),
-      subtitle: Text(fakeIpRangeV6),
+      subtitle: Text(displaySubtitle),
       delegate: InputDelegate(
         title: appLocalizations.fakeipRangeV6,
-        value: fakeIpRangeV6,
+        value: displaySubtitle,
         validator: (value) {
-          if (value == null || value.isEmpty) {
-            return appLocalizations.emptyTip(appLocalizations.fakeipRangeV6);
-          }
           return null;
         },
         onChanged: (String? value) {
           if (value == null) {
+            return;
+          }
+          if (value == displaySubtitle && fakeIpRangeV6.isEmpty) {
             return;
           }
           ref
@@ -772,9 +778,7 @@ class FallbackConcurrentItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fallbackLazyQuery = ref.watch(
-      patchClashConfigProvider.select(
-        (state) => state.dns.fallbackLazyQuery,
-      ),
+      patchClashConfigProvider.select((state) => state.dns.fallbackLazyQuery),
     );
     final value = !fallbackLazyQuery;
     return ListItem.switchItem(
@@ -871,7 +875,7 @@ class DomainItem extends StatelessWidget {
 }
 
 final dnsItems = <Widget>[
-  const OverrideItem(),
+  ...generateSection(items: const [OverrideItem()]),
   ...generateSection(
     title: appLocalizations.options,
     items: const [

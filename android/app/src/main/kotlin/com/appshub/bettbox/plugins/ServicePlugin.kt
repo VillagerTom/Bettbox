@@ -79,6 +79,9 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
             "isSmartStopped" -> result.success(GlobalState.isSmartStopped)
             "getLocalIpAddresses" -> result.success(VpnPlugin.getLocalIpAddresses())
+            "getLocalGateways" -> result.success(VpnPlugin.getLocalGateways())
+            "getNetworkInfo" -> result.success(VpnPlugin.getNetworkInfo())
+            "getCurrentDns" -> result.success(VpnPlugin.getCurrentDns())
             "setQuickResponse" -> {
                 VpnPlugin.setQuickResponse(call.argument<Boolean>("enabled") ?: false)
                 result.success(true)
@@ -99,39 +102,20 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 result.success(true)
             }
             "updateNotificationSpeed" -> {
-                val profileName = call.argument<String>("profileName") ?: ""
-                val speedInfo = call.argument<String>("speedInfo") ?: ""
-
-                com.appshub.bettbox.GlobalState.currentProfileName = profileName
-                com.appshub.bettbox.GlobalState.isSpeedNotificationEnabled = true
-                val context = com.appshub.bettbox.BettboxApplication.getAppContext()
-                context?.let {
-                    android.service.quicksettings.TileService.requestListeningState(
-                        it,
-                        android.content.ComponentName(it, com.appshub.bettbox.services.BettboxTileService::class.java)
-                    )
-                }
-
-                VpnPlugin.updateNotificationSpeed(profileName, speedInfo)
+                VpnPlugin.handleUpdateNotificationSpeed(
+                    call.argument<String>("profileName") ?: "",
+                    call.argument<String>("speedInfo") ?: ""
+                )
                 result.success(true)
             }
             "restoreNotification" -> {
-                val context = com.appshub.bettbox.BettboxApplication.getAppContext()
-                if (context != null) {
-                    com.appshub.bettbox.GlobalState.isSpeedNotificationEnabled = false
-                    android.service.quicksettings.TileService.requestListeningState(
-                        context,
-                        android.content.ComponentName(context, com.appshub.bettbox.services.BettboxTileService::class.java)
-                    )
-
-                    val intent = android.content.Intent(
-                        context, 
-                        com.appshub.bettbox.services.BettboxVpnService::class.java
-                    ).apply {
-                        action = "RESTORE_NOTIFICATION"
-                    }
-                    runCatching { context.startService(intent) }
-                }
+                GlobalState.isSpeedNotificationEnabled = false
+                VpnPlugin.restoreNotification()
+                result.success(true)
+            }
+            "setHighPriorityNotification" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                VpnPlugin.setHighPriorityNotification(enabled)
                 result.success(true)
             }
             else -> result.notImplemented()

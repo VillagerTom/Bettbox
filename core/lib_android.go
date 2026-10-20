@@ -123,13 +123,18 @@ func handleStartTun(fd int, callback unsafe.Pointer) {
 	now := time.Now()
 	runTime = &now
 	if fd != 0 {
+		if currentConfig == nil {
+			log.Warnln("[APP] handleStartTun called before setupConfig")
+			handleStopTun()
+			return
+		}
 		handler := &TunHandler{
 			callback: callback,
 			limit:    semaphore.NewWeighted(4),
 		}
 		tunHandler.Store(handler)
 		initTunHook()
-		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack, currentConfig.General.Tun.DisableICMPForwarding, uint32(currentConfig.General.Tun.MTU), currentConfig.General.IPv6)
+		tunListener, _ := t.Start(fd, currentConfig.General.Tun.Device, currentConfig.General.Tun.Stack, currentConfig.General.Tun.DisableICMPForwarding, uint32(currentConfig.General.Tun.MTU), currentConfig.General.IPv6, currentConfig.General.Tun.CongestionController)
 		if tunListener != nil {
 			log.Infoln("TUN address: %v", tunListener.Address())
 			handler.listener = tunListener
@@ -168,6 +173,10 @@ func removeTunHook() {
 func handleGetAndroidVpnOptions() string {
 	tunLock.Lock()
 	defer tunLock.Unlock()
+	if currentConfig == nil {
+		log.Warnln("[APP] handleGetAndroidVpnOptions called before setupConfig")
+		return ""
+	}
 	ipv6Address := ""
 	if currentConfig.General.IPv6 {
 		ipv6Address = state.DefaultIpv6Address
@@ -241,9 +250,11 @@ func quickStart(initParamsChar *C.char, paramsChar *C.char, stateParamsChar *C.c
 		res := handleInitClash(paramsString)
 		if res == false {
 			bridge.SendToPort(i, "init error")
+			return
 		}
 		handleSetState(stateParams)
-		bridge.SendToPort(i, handleSetupConfig(bytes))
+		result, _ := json.Marshal(handleSetupConfig(bytes))
+		bridge.SendToPort(i, string(result))
 	}()
 }
 

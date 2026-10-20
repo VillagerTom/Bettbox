@@ -11,7 +11,7 @@ import 'package:bett_box/views/config/sniffer.dart';
 import 'package:bett_box/views/config/tunnel.dart';
 import 'package:bett_box/views/config/experimental.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ConfigView extends StatefulWidget {
@@ -31,7 +31,7 @@ class _ConfigViewState extends State<ConfigView> {
         leading: const Icon(Icons.build),
         delegate: NextDelegate(
           title: appLocalizations.general,
-          builder: (_) => generateListView(generalItems),
+          builder: (_) => const GeneralListView(),
           blur: false,
         ),
       ),
@@ -57,14 +57,16 @@ class _ConfigViewState extends State<ConfigView> {
                     ref
                         .read(vpnSettingProvider.notifier)
                         .updateState(
-                          (state) => defaultVpnProps.copyWith(
-                            accessControl: state.accessControl,
+                          (state) => state.copyWith(
+                            allowBypass: defaultVpnProps.allowBypass,
                           ),
                         );
                     ref
                         .read(patchClashConfigProvider.notifier)
                         .updateState(
-                          (state) => state.copyWith(tun: defaultTun),
+                          (state) => state.copyWith(
+                            tun: defaultTun.copyWith(enable: state.tun.enable),
+                          ),
                         );
                   },
                   tooltip: appLocalizations.reset,
@@ -168,7 +170,9 @@ class _ConfigViewState extends State<ConfigView> {
                 titleBuilder: (item) => Text(item.key),
                 subtitleBuilder: (item) => Text(item.value),
                 canDelete: (item) =>
-                    !(storeFix && item.key == 'services.googleapis.cn') &&
+                    !(system.isAndroid &&
+                        storeFix &&
+                        item.key == 'services.googleapis.cn') &&
                     !(networkFix && item.key == 'dns.msftncsi.com'),
                 onChange: (value) {
                   ref
@@ -285,6 +289,6 @@ class _ConfigViewState extends State<ConfigView> {
       ),
     ];
 
-    return generateListView(items.separated(const Divider(height: 0)).toList());
+    return generateListView(generateSection(items: items));
   }
 }

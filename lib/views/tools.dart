@@ -19,10 +19,11 @@ import 'package:bett_box/views/config/ntp.dart';
 import 'package:bett_box/views/config/sniffer.dart';
 import 'package:bett_box/views/config/tunnel.dart';
 import 'package:bett_box/views/connection/connections.dart';
+import 'package:bett_box/views/connection/requests.dart';
 import 'package:bett_box/views/hotkey.dart';
 import 'package:bett_box/views/other_setting.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' show dirname, join;
@@ -47,6 +48,130 @@ class _SearchItem {
   });
 }
 
+class ToolsShortcut {
+  final Widget icon;
+  final String title;
+  final String? subtitle;
+  final WidgetBuilder? builder;
+  final VoidCallback? onTap;
+  final bool wrap;
+
+  const ToolsShortcut({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.builder,
+    this.onTap,
+    this.wrap = true,
+  });
+
+  void open(BuildContext context) {
+    final builder = this.builder;
+    if (builder == null) {
+      onTap?.call();
+      return;
+    }
+    showExtend(
+      context,
+      props: const ExtendProps(forceFull: true),
+      builder: (_, type) {
+        final child = builder(context);
+        return wrap
+            ? AdaptiveSheetScaffold(type: type, title: title, body: child)
+            : child;
+      },
+    );
+  }
+}
+
+List<ToolsShortcut> getToolsShortcuts(
+  List<NavigationItem> moreItems,
+  List<SidebarFlyoutEntry> entries,
+) {
+  ToolsShortcut? buildNavigationShortcut(PageLabel label) {
+    final item = moreItems.where((item) => item.label == label).firstOrNull;
+    if (item == null) {
+      return null;
+    }
+    return ToolsShortcut(
+      icon: item.icon,
+      title: Intl.message(item.label.name),
+      subtitle: switch (item.description) {
+        final description? => Intl.message(description),
+        null => null,
+      },
+      builder: item.builder,
+      wrap: false,
+    );
+  }
+
+  return [
+    for (final entry in SidebarFlyoutEntry.supportedValues)
+      if (entries.contains(entry))
+        ?switch (entry) {
+          SidebarFlyoutEntry.resources => buildNavigationShortcut(
+            PageLabel.resources,
+          ),
+          SidebarFlyoutEntry.script => buildNavigationShortcut(
+            PageLabel.script,
+          ),
+          SidebarFlyoutEntry.theme => ToolsShortcut(
+            icon: const Icon(Icons.style),
+            title: appLocalizations.theme,
+            subtitle: appLocalizations.themeDesc,
+            builder: (_) => const ThemeView(),
+          ),
+          SidebarFlyoutEntry.backupAndRecovery => ToolsShortcut(
+            icon: const Icon(Icons.cloud_sync),
+            title: appLocalizations.backupAndRecovery,
+            subtitle: appLocalizations.backupAndRecoveryDesc,
+            builder: (_) => const BackupAndRecovery(),
+          ),
+          SidebarFlyoutEntry.hotkeyManagement => ToolsShortcut(
+            icon: const Icon(Icons.keyboard),
+            title: appLocalizations.hotkeyManagement,
+            subtitle: appLocalizations.hotkeyManagementDesc,
+            builder: (_) => const HotKeyView(),
+          ),
+          SidebarFlyoutEntry.loopback => ToolsShortcut(
+            icon: const Icon(Icons.lock),
+            title: appLocalizations.loopback,
+            subtitle: appLocalizations.loopbackDesc,
+            onTap: () {
+              windows?.runas(
+                '"${join(dirname(Platform.resolvedExecutable), "WindowsLoopbackManager.exe")}"',
+                '',
+                showWindow: true,
+              );
+            },
+          ),
+          SidebarFlyoutEntry.basicConfig => ToolsShortcut(
+            icon: const Icon(Icons.developer_board_rounded),
+            title: appLocalizations.basicConfig,
+            subtitle: appLocalizations.basicConfigDesc,
+            builder: (_) => const ConfigView(),
+          ),
+          SidebarFlyoutEntry.otherSettings => ToolsShortcut(
+            icon: const Icon(Icons.settings_suggest_outlined),
+            title: appLocalizations.otherSettings,
+            subtitle: appLocalizations.otherSettingsDesc,
+            builder: (_) => const OtherSettingView(),
+          ),
+          SidebarFlyoutEntry.application => ToolsShortcut(
+            icon: const Icon(Icons.settings),
+            title: appLocalizations.application,
+            subtitle: appLocalizations.applicationDesc,
+            builder: (_) => const ApplicationSettingView(),
+          ),
+          SidebarFlyoutEntry.about => ToolsShortcut(
+            icon: const Icon(Icons.info),
+            title: appLocalizations.about,
+            builder: (_) => const AboutView(),
+          ),
+        },
+  ];
+}
+
 class _GeneralListView extends StatelessWidget {
   const _GeneralListView();
 
@@ -67,6 +192,9 @@ class _ToolViewState extends ConsumerState<ToolsView> {
   Widget _buildNavigationPage(NavigationItem navigationItem) {
     if (navigationItem.label == PageLabel.connections) {
       return const ConnectionsView(respectCurrentPage: false);
+    }
+    if (navigationItem.label == PageLabel.requests) {
+      return const RequestsView();
     }
     return navigationItem.builder(context);
   }
@@ -90,42 +218,9 @@ class _ToolViewState extends ConsumerState<ToolsView> {
     BuildContext context, {
     required String title,
     required List<Widget> items,
+    bool isFirst = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ListHeader(
-            title: title,
-            padding: const EdgeInsets.only(left: 8, bottom: 8),
-          ),
-          CommonCard(
-            type: CommonCardType.filled,
-            child: Column(
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  items[i],
-                  if (i != items.length - 1)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: context.colorScheme.outlineVariant.withValues(
-                        alpha:
-                            context.colorScheme.brightness == Brightness.light
-                            ? 0.3
-                            : 0.2,
-                      ),
-                      indent: 16,
-                      endIndent: 16,
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return SectionContainer(title: title, items: items, isFirst: isFirst);
   }
 
   String _query = '';
@@ -286,7 +381,7 @@ class _ToolViewState extends ConsumerState<ToolsView> {
         title: appLocalizations.basicConfig,
         subtitle: appLocalizations.basicConfigDesc,
         category: settingsCategory,
-        leading: const Icon(Icons.edit),
+        leading: const Icon(Icons.developer_board_rounded),
         onTap: (context, _) => _pushPage(
           context,
           appLocalizations.basicConfig,
@@ -371,13 +466,14 @@ class _ToolViewState extends ConsumerState<ToolsView> {
         onTap: (context, _) =>
             _pushPage(context, appLocalizations.theme, const ThemeView()),
       ),
-      _SearchItem(
-        title: appLocalizations.lightIcon,
-        subtitle: appLocalizations.lightIconDesc,
-        category: themeCategory,
-        onTap: (context, _) =>
-            _pushPage(context, appLocalizations.theme, const ThemeView()),
-      ),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.darkIcon,
+          subtitle: appLocalizations.darkIconDesc,
+          category: themeCategory,
+          onTap: (context, _) =>
+              _pushPage(context, appLocalizations.theme, const ThemeView()),
+        ),
       if (system.isWindows)
         _SearchItem(
           title: appLocalizations.trayIconInvert,
@@ -435,16 +531,17 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const ApplicationSettingView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.silentLaunch,
-        subtitle: appLocalizations.silentLaunchDesc,
-        category: appCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.application,
-          const ApplicationSettingView(),
+      if (system.isDesktop)
+        _SearchItem(
+          title: appLocalizations.silentLaunch,
+          subtitle: appLocalizations.silentLaunchDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
         ),
-      ),
       _SearchItem(
         title: appLocalizations.autoRun,
         subtitle: appLocalizations.autoRunDesc,
@@ -455,26 +552,39 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const ApplicationSettingView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.exclude,
-        subtitle: appLocalizations.excludeDesc,
-        category: appCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.application,
-          const ApplicationSettingView(),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.exclude,
+          subtitle: appLocalizations.excludeDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.alwaysShowTitleBar,
-        subtitle: appLocalizations.alwaysShowTitleBarDesc,
-        category: appCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.application,
-          const ApplicationSettingView(),
+      if (system.isDesktop && (system.isWindows || system.isLinux))
+        _SearchItem(
+          title: appLocalizations.alwaysShowTitleBar,
+          subtitle: appLocalizations.alwaysShowTitleBarDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
         ),
-      ),
+      if (system.isMacOS)
+        _SearchItem(
+          title: appLocalizations.keepDockIcon,
+          subtitle: appLocalizations.keepDockIconDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
+        ),
       _SearchItem(
         title: appLocalizations.showStartSwitch,
         subtitle: appLocalizations.showStartSwitchDesc,
@@ -485,26 +595,49 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const ApplicationSettingView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.navBarHapticFeedback,
-        subtitle: appLocalizations.navBarHapticFeedbackDesc,
-        category: appCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.application,
-          const ApplicationSettingView(),
+      if (system.isDesktop)
+        _SearchItem(
+          title: appLocalizations.sidebarFlyout,
+          subtitle: appLocalizations.sidebarFlyoutDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
         ),
-      ),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.navBarHapticFeedback,
+          subtitle: appLocalizations.navBarHapticFeedbackDesc,
+          category: appCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.application,
+            const ApplicationSettingView(),
+          ),
+        ),
       _SearchItem(
         title: appLocalizations.autoCloseConnections,
         subtitle: appLocalizations.autoCloseConnectionsDesc,
-        category: appCategory,
+        category: otherSettingsCategory,
         onTap: (context, _) => _pushPage(
           context,
-          appLocalizations.application,
-          const ApplicationSettingView(),
+          appLocalizations.otherSettings,
+          const OtherSettingView(),
         ),
       ),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.flushDnsOnNetworkChange,
+          subtitle: appLocalizations.flushDnsOnNetworkChangeDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
+        ),
       _SearchItem(
         title: appLocalizations.onlyStatisticsProxy,
         subtitle: appLocalizations.onlyStatisticsProxyDesc,
@@ -548,29 +681,42 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const OtherSettingView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.dozeSuspend,
-        subtitle: appLocalizations.dozeSuspendDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.dozeSuspend,
+          subtitle: appLocalizations.dozeSuspendDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.quickResponse,
-        subtitle: appLocalizations.quickResponseDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.quickResponse,
+          subtitle: appLocalizations.quickResponseDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.storeFix,
+          subtitle: appLocalizations.storeFixDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
+        ),
       _SearchItem(
-        title: appLocalizations.storeFix,
-        subtitle: appLocalizations.storeFixDesc,
+        title: appLocalizations.loopbackProtection,
+        subtitle: appLocalizations.loopbackProtectionDesc,
         category: otherSettingsCategory,
         onTap: (context, _) => _pushPage(
           context,
@@ -598,56 +744,83 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const OtherSettingView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.networkSpeedNotification,
-        subtitle: appLocalizations.networkSpeedNotificationDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.notificationHighPriority,
+          subtitle: appLocalizations.notificationHighPriorityDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.trayEnhancement,
-        subtitle: appLocalizations.trayEnhancementDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.networkSpeedNotification,
+          subtitle: appLocalizations.networkSpeedNotificationDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.highPriority,
-        subtitle: appLocalizations.highPriorityDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (!system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.trayEnhancement,
+          subtitle: appLocalizations.trayEnhancementDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.networkFix,
-        subtitle: appLocalizations.networkFixDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isMacOS)
+        _SearchItem(
+          title: appLocalizations.enableTraySpeed,
+          subtitle: appLocalizations.enableTraySpeedDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.batteryOptimization,
-        subtitle: appLocalizations.batteryOptimizationDesc,
-        category: otherSettingsCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.otherSettings,
-          const OtherSettingView(),
+      if (system.isWindows)
+        _SearchItem(
+          title: appLocalizations.highPriority,
+          subtitle: appLocalizations.highPriorityDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
         ),
-      ),
+      if (system.isWindows)
+        _SearchItem(
+          title: appLocalizations.networkFix,
+          subtitle: appLocalizations.networkFixDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
+        ),
+      if (system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.batteryOptimization,
+          subtitle: appLocalizations.batteryOptimizationDesc,
+          category: otherSettingsCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.otherSettings,
+            const OtherSettingView(),
+          ),
+        ),
     ]);
 
     final generalCategory = '$configCategory/${appLocalizations.general}';
@@ -749,16 +922,6 @@ class _ToolViewState extends ConsumerState<ToolsView> {
         ),
       ),
       _SearchItem(
-        title: appLocalizations.geodataLoader,
-        subtitle: appLocalizations.geodataLoaderDesc,
-        category: generalCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.general,
-          const _GeneralListView(),
-        ),
-      ),
-      _SearchItem(
         title: appLocalizations.externalController,
         subtitle: appLocalizations.externalControllerDesc,
         category: generalCategory,
@@ -802,55 +965,60 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           const NetworkListView(),
         ),
       ),
-      _SearchItem(
-        title: appLocalizations.systemProxy,
-        subtitle: appLocalizations.systemProxyDesc,
-        category: networkCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.network,
-          const NetworkListView(),
+      if (system.isDesktop)
+        _SearchItem(
+          title: appLocalizations.systemProxy,
+          subtitle: appLocalizations.systemProxyDesc,
+          category: networkCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.network,
+            const NetworkListView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.bypassDomain,
-        subtitle: appLocalizations.bypassDomainDesc,
-        category: networkCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.network,
-          const NetworkListView(),
+      if (system.isDesktop)
+        _SearchItem(
+          title: appLocalizations.bypassDomain,
+          subtitle: appLocalizations.bypassDomainDesc,
+          category: networkCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.network,
+            const NetworkListView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.tun,
-        subtitle: appLocalizations.tunDesc,
-        category: networkCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.network,
-          const NetworkListView(),
+      if (system.isDesktop)
+        _SearchItem(
+          title: appLocalizations.tun,
+          subtitle: appLocalizations.tunDesc,
+          category: networkCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.network,
+            const NetworkListView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.autoSetSystemDns,
-        category: networkCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.network,
-          const NetworkListView(),
+      if (system.isMacOS)
+        _SearchItem(
+          title: appLocalizations.autoSetSystemDns,
+          category: networkCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.network,
+            const NetworkListView(),
+          ),
         ),
-      ),
-      _SearchItem(
-        title: appLocalizations.strictRoute,
-        subtitle: appLocalizations.strictRouteDesc,
-        category: networkCategory,
-        onTap: (context, _) => _pushPage(
-          context,
-          appLocalizations.network,
-          const NetworkListView(),
+      if (!system.isAndroid)
+        _SearchItem(
+          title: appLocalizations.strictRoute,
+          subtitle: appLocalizations.strictRouteDesc,
+          category: networkCategory,
+          onTap: (context, _) => _pushPage(
+            context,
+            appLocalizations.network,
+            const NetworkListView(),
+          ),
         ),
-      ),
       _SearchItem(
         title: appLocalizations.icmpForwarding,
         subtitle: appLocalizations.icmpForwardingDesc,
@@ -1345,6 +1513,7 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           return _buildModernSection(
             context,
             title: appLocalizations.more,
+            isFirst: true,
             items: state.navigationItems
                 .map((item) => _buildNavigationMenuItem(item))
                 .toList(),
@@ -1376,17 +1545,19 @@ class _ToolViewState extends ConsumerState<ToolsView> {
     return CommonScaffold(
       title: appLocalizations.tools,
       searchState: AppBarSearchState(onSearch: _onSearchChanged),
-      body: ListView.builder(
-        key: _query.isEmpty ? toolsStoreKey : null,
-        itemCount: _query.isEmpty ? items.length : searchResults.length,
-        itemBuilder: (_, index) {
-          return _query.isEmpty ? items[index] : searchResults[index];
-        },
-        padding: EdgeInsets.only(
-          bottom:
-              20 +
-              (isMobileView ? getFloatingBottomBarReserveHeight(context) : 0),
-          top: 8,
+      body: ScrollEdgeRise(
+        builder: (context, rise) => ListView.builder(
+          key: _query.isEmpty ? toolsStoreKey : null,
+          itemCount: _query.isEmpty ? items.length : searchResults.length,
+          itemBuilder: (_, index) {
+            return _query.isEmpty ? items[index] : searchResults[index];
+          },
+          padding: EdgeInsets.only(
+            bottom:
+                (globalState.isAndroidTV ? 80.0 : 20.0) +
+                (isMobileView ? getFloatingBottomBarReserveHeight(context) : 0),
+            top: 8 + rise,
+          ),
         ),
       ),
     );
@@ -1396,11 +1567,37 @@ class _ToolViewState extends ConsumerState<ToolsView> {
 class _LocaleItem extends ConsumerWidget {
   const _LocaleItem();
 
-  static final List<Locale> _localeOptions =
-      AppLocalizations.delegate.supportedLocales;
+  static final List<Locale> _localeOptions = _getOrderedLocales();
+  static const Map<String, String> _nativeLocaleNames = {
+    'zh_CN': '简体中文',
+    'zh_TC': '繁體中文',
+    'en': 'English',
+    'ru': 'Русский',
+    'fa': 'فارسی',
+    'ja': '日本語',
+    'ko': '한국어',
+  };
+
+  static List<Locale> _getOrderedLocales() {
+    final priority = ['zh_CN', 'zh_TC', 'en', 'ru', 'fa', 'ja', 'ko'];
+    final locales = List<Locale>.from(
+      AppLocalizations.delegate.supportedLocales,
+    );
+    locales.sort((a, b) {
+      final aKey = a.toString();
+      final bKey = b.toString();
+      final aIndex = priority.indexOf(aKey);
+      final bIndex = priority.indexOf(bKey);
+      if (aIndex != -1 && bIndex != -1) return aIndex.compareTo(bIndex);
+      if (aIndex != -1) return -1;
+      if (bIndex != -1) return 1;
+      return aKey.compareTo(bKey);
+    });
+    return locales;
+  }
 
   String _getLocaleString(Locale locale) {
-    return Intl.message(locale.toString());
+    return _nativeLocaleNames[locale.toString()] ?? locale.toString();
   }
 
   @override
@@ -1413,7 +1610,7 @@ class _LocaleItem extends ConsumerWidget {
     return ListItem<Locale>.options(
       leading: const Icon(Icons.language_outlined),
       title: Text(appLocalizations.language),
-      subtitle: Text(Intl.message(currentLocale.toString())),
+      subtitle: Text(_getLocaleString(currentLocale)),
       delegate: OptionsDelegate(
         title: appLocalizations.language,
         options: _localeOptions,
@@ -1526,7 +1723,7 @@ class _ConfigItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListItem.next(
-      leading: const Icon(Icons.edit),
+      leading: const Icon(Icons.developer_board_rounded),
       title: Text(appLocalizations.basicConfig),
       subtitle: Text(appLocalizations.basicConfigDesc),
       delegate: NextDelegate(

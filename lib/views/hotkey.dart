@@ -6,7 +6,7 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/widgets/card.dart';
 import 'package:bett_box/widgets/dialog.dart';
 import 'package:bett_box/widgets/list.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -57,9 +57,9 @@ class HotKeyView extends StatelessWidget {
               },
             );
           },
-        )
+        ),
     ];
-    return generateListView(items);
+    return generateListView(generateSection(items: items));
   }
 }
 
@@ -126,6 +126,7 @@ class _HotKeyRecorderState extends State<HotKeyRecorder> {
       globalState.showMessage(
         title: appLocalizations.tip,
         message: TextSpan(text: appLocalizations.inputCorrectHotkey),
+        cancelable: false,
       );
       return;
     }
@@ -142,6 +143,7 @@ class _HotKeyRecorderState extends State<HotKeyRecorder> {
       globalState.showMessage(
         title: appLocalizations.tip,
         message: TextSpan(text: appLocalizations.hotkeyConflict),
+        cancelable: false,
       );
       return;
     }

@@ -1,14 +1,18 @@
 import 'package:bett_box/common/common.dart';
 import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/common.dart';
+import 'package:bett_box/models/config.dart';
 import 'package:bett_box/models/widget.dart';
 import 'package:bett_box/providers/providers.dart';
+import 'package:bett_box/state.dart';
 import 'package:bett_box/views/proxies/list.dart';
 import 'package:bett_box/views/proxies/providers.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../profiles/scripts.dart'
+    show showGroupSwitchOptions, showScriptCustomOptions;
 import 'advanced_settings.dart';
 import 'setting.dart';
 import 'tab.dart';
@@ -26,21 +30,49 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
   bool _isTab = false;
 
   List<Widget> _buildActions() {
+    final (autoStickyHeader, showHiddenItems) = ref.watch(
+      proxiesStyleSettingProvider.select(
+        (state) => (state.autoStickyHeader, state.showHiddenItems),
+      ),
+    );
+    final (scriptOn, compatible) = ref.watch(
+      scriptStateProvider.select(
+        (s) => (
+          s.currentId != null,
+          s.currentScript?.compatible ?? false,
+        ),
+      ),
+    );
+    final profileOverride = ref.watch(
+      currentProfileProvider.select((p) => p?.useScriptOverride ?? false),
+    );
+    final hasScriptCustom = scriptOn && compatible && profileOverride;
+    final hasGroupCustom =
+        !hasScriptCustom && ref.read(currentProfileIdProvider) != null;
+    final hasCustom = hasScriptCustom || hasGroupCustom;
     return [
       if (_isTab)
         IconButton(
           onPressed: () {
             _proxiesTabKey.currentState?.scrollToGroupSelected();
           },
-          icon: Icon(Icons.adjust, weight: 1),
+          tooltip: appLocalizations.locate,
+          icon: const Icon(Icons.adjust, weight: 1),
+        ),
+      if (hasCustom)
+        IconButton(
+          onPressed: _handleCustomOptions,
+          icon: const Icon(Icons.tune),
+          tooltip: appLocalizations.custom,
         ),
       CommonPopupBox(
         targetBuilder: (open) {
           return IconButton(
             onPressed: () {
-              open(offset: Offset(0, 20));
+              open(offset: const Offset(0, 20));
             },
-            icon: Icon(Icons.more_vert),
+            tooltip: appLocalizations.more,
+            icon: const Icon(Icons.more_vert),
           );
         },
         popup: CommonPopupMenu(
@@ -93,21 +125,33 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
             ),
             if (!_isTab)
               PopupMenuItemData(
-                icon: Icons.style_outlined,
-                label: appLocalizations.iconConfiguration,
+                icon: autoStickyHeader
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                label: appLocalizations.autoStickyHeader,
                 onPressed: () {
-                  showExtend(
-                    context,
-                    builder: (_, type) {
-                      return AdaptiveSheetScaffold(
-                        type: type,
-                        body: const _IconConfigView(),
-                        title: appLocalizations.iconConfiguration,
+                  ref
+                      .read(proxiesStyleSettingProvider.notifier)
+                      .updateState(
+                        (state) =>
+                            state.copyWith(autoStickyHeader: !autoStickyHeader),
                       );
-                    },
-                  );
                 },
               ),
+            PopupMenuItemData(
+              icon: showHiddenItems
+                  ? Icons.check_circle_rounded
+                  : Icons.circle_outlined,
+              label: appLocalizations.showHiddenItems,
+              onPressed: () {
+                ref
+                    .read(proxiesStyleSettingProvider.notifier)
+                    .updateState(
+                      (state) =>
+                          state.copyWith(showHiddenItems: !showHiddenItems),
+                    );
+              },
+            ),
           ],
         ),
       ),
@@ -115,24 +159,46 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
   }
 
   Widget? _buildFAB() {
-    if (!_isTab) return null;
-    final isMobileView = ref.watch(isMobileViewProvider);
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: isMobileView
-            ? getFloatingBottomBarFABReserveHeight(context)
-            : 0,
-      ),
-      child: DelayTestButton(
-        onClick: () async {
-          await _proxiesTabKey.currentState?.delayTestCurrentGroup();
-        },
-      ),
+    if (!_isTab || globalState.isAndroidTV) return null;
+    return Consumer(
+      builder: (_, ref, _) {
+        final isMobileView = ref.watch(isMobileViewProvider);
+        final currentGroupName = ref.watch(
+          proxiesTabControllerStateProvider.select((state) => state.b),
+        );
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: isMobileView
+                ? getFloatingBottomBarFABReserveHeight(context)
+                : 0,
+          ),
+          child: DelayTestButton(
+            groupName: currentGroupName ?? '',
+            onClick: () async {
+              await _proxiesTabKey.currentState?.delayTestCurrentGroup();
+            },
+          ),
+        );
+      },
     );
   }
 
   void _onSearch(String value) {
     ref.read(queryProvider.notifier).value = value;
+  }
+
+  Future<void> _handleCustomOptions() async {
+    final profileOverride =
+        ref.read(currentProfileProvider)?.useScriptOverride ?? false;
+    final script = ref.read(scriptStateProvider).currentScript;
+    if (script != null && script.compatible && profileOverride) {
+      await showScriptCustomOptions(context, script: script);
+      return;
+    }
+    final profileId = ref.read(currentProfileIdProvider);
+    if (profileId != null) {
+      await showGroupSwitchOptions(context, profileId: profileId);
+    }
   }
 
   @override
@@ -165,8 +231,10 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
 
   @override
   Widget build(BuildContext context) {
-    final proxiesType = ref.watch(
-      proxiesStyleSettingProvider.select((state) => state.type),
+    final (proxiesType, autoStickyHeader) = ref.watch(
+      proxiesStyleSettingProvider.select(
+        (state) => (state.type, state.autoStickyHeader),
+      ),
     );
     final hasGroups = ref.watch(
       groupsProvider.select((state) => state.isNotEmpty),
@@ -176,6 +244,7 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
       floatingActionButton: _buildFAB(),
       actions: _buildActions(),
       title: appLocalizations.proxies,
+      scrollEdgeFade: proxiesType == ProxiesType.list && !autoStickyHeader,
       searchState: AppBarSearchState(onSearch: _onSearch),
       body: switch (hasGroups) {
         false => NullStatus(label: appLocalizations.noProxy),
@@ -183,36 +252,6 @@ class _ProxiesViewState extends ConsumerState<ProxiesView> {
           ProxiesType.tab => ProxiesTabView(key: _proxiesTabKey),
           ProxiesType.list => const ProxiesListView(),
         },
-      },
-    );
-  }
-}
-
-class _IconConfigView extends ConsumerWidget {
-  const _IconConfigView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final iconMap = ref.watch(
-      proxiesStyleSettingProvider.select((state) => state.iconMap),
-    );
-    return MapInputPage(
-      title: appLocalizations.iconConfiguration,
-      map: iconMap,
-      keyLabel: appLocalizations.regExp,
-      valueLabel: appLocalizations.icon,
-      titleBuilder: (item) => Text(item.key),
-      leadingBuilder: (item) => Container(
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
-        clipBehavior: Clip.antiAlias,
-        child: CommonTargetIcon(src: item.value, size: 42),
-      ),
-      subtitleBuilder: (item) =>
-          Text(item.value, maxLines: 2, overflow: TextOverflow.ellipsis),
-      onChange: (value) {
-        ref
-            .read(proxiesStyleSettingProvider.notifier)
-            .updateState((state) => state.copyWith(iconMap: value));
       },
     );
   }

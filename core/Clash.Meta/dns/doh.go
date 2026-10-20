@@ -36,16 +36,9 @@ const (
 	// connections in HTTP transport.
 	transportDefaultIdleConnTimeout = 5 * time.Minute
 
-	// dohMaxConnsPerHost controls the maximum number of connections for
-	// each host.  Note, that setting it to 1 may cause issues with Go's http
-	// implementation, see https://github.com/AdguardTeam/dnsproxy/issues/278.
-	dohMaxConnsPerHost = 2
-	dialTimeout        = 10 * time.Second
+	dialTimeout = 10 * time.Second
 
-	// dohMaxIdleConns controls the maximum number of connections being idle
-	// at the same time.
-	dohMaxIdleConns = 2
-	maxElapsedTime  = time.Second * 30
+	maxElapsedTime = time.Second * 30
 )
 
 var DefaultHTTPVersions = []C.HTTPVersion{C.HTTPVersion11, C.HTTPVersion2}
@@ -390,12 +383,17 @@ func (doh *dnsOverHTTPS) createClient(ctx context.Context) (*http.Client, error)
 // HTTP3 is enabled in the upstream options).  If this attempt is successful,
 // it returns an HTTP3 transport, otherwise it returns the H1/H2 transport.
 func (doh *dnsOverHTTPS) createTransport(ctx context.Context) (t http.RoundTripper, err error) {
+	// http.Transport dials in a context detached from the request, so a dial
+	// that the query has given up on must still end on its own.
 	transport := &http.Transport{
 		DisableCompression: true,
-		DialContext:        doh.dialer.DialContext,
-		IdleConnTimeout:    transportDefaultIdleConnTimeout,
-		MaxConnsPerHost:    dohMaxConnsPerHost,
-		MaxIdleConns:       dohMaxIdleConns,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+			defer cancel()
+			return doh.dialer.DialContext(ctx, network, addr)
+		},
+		IdleConnTimeout:     transportDefaultIdleConnTimeout,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	if doh.url.Scheme == "http" {

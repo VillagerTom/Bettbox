@@ -19,6 +19,29 @@ const kEventOnTrayMenuItemClick = 'onTrayMenuItemClick';
 
 enum TrayIconPosition { left, right }
 
+@visibleForTesting
+class TrayMenuOpenState {
+  int _depth = 0;
+
+  bool get isOpen => _depth > 0;
+
+  int get depth => _depth;
+
+  void open() {
+    _depth += 1;
+  }
+
+  void close() {
+    if (_depth > 0) {
+      _depth -= 1;
+    }
+  }
+
+  void reset() {
+    _depth = 0;
+  }
+}
+
 class TrayManager {
   TrayManager._() {
     _channel.setMethodCallHandler(_methodCallHandler);
@@ -38,9 +61,13 @@ class TrayManager {
 
   Menu? _menu;
 
-  bool _isMenuOpen = false;
+  final TrayMenuOpenState _menuOpenState = TrayMenuOpenState();
 
-  bool get isMenuOpen => _isMenuOpen;
+  bool get isMenuOpen => _menuOpenState.isOpen;
+
+  bool _isOptionPressed = false;
+
+  bool get isOptionPressed => _isOptionPressed;
 
   Map<String, dynamic> _menuToJson(Menu menu) {
     return {
@@ -65,11 +92,20 @@ class TrayManager {
 
   Future<void> _methodCallHandler(MethodCall call) async {
     if (call.method == 'onMenuOpen') {
-      _isMenuOpen = true;
+      _menuOpenState.open();
       return;
     } else if (call.method == 'onMenuClose') {
-      _isMenuOpen = false;
+      _menuOpenState.close();
+      for (final TrayListener listener in _listeners) {
+        listener.onTrayMenuClose();
+      }
       return;
+    }
+
+    if (call.method == kEventOnTrayIconMouseDown ||
+        call.method == kEventOnTrayIconRightMouseDown) {
+      final arguments = call.arguments;
+      _isOptionPressed = arguments is Map && arguments['option'] == true;
     }
 
     for (final TrayListener listener in _listeners) {
@@ -124,6 +160,7 @@ class TrayManager {
 
   // Destroys the tray icon immediately.
   Future<void> destroy() async {
+    _menuOpenState.reset();
     await _channel.invokeMethod('destroy');
   }
 
@@ -141,10 +178,11 @@ class TrayManager {
     bool isTemplate = false, // macOS only
     TrayIconPosition iconPosition = TrayIconPosition.left, // macOS only
     int iconSize = 18, // macOS only
+    String? id, // Linux only
   }) async {
     final Map<String, dynamic> arguments = {
       'id': defaultTargetPlatform == TargetPlatform.linux
-          ? 'bettbox'
+          ? (id ?? shortid.generate())
           : shortid.generate(),
       'iconPath': path.joinAll([
         path.dirname(Platform.resolvedExecutable),
@@ -211,6 +249,30 @@ class TrayManager {
     await _channel.invokeMethod('setTitle', arguments);
   }
 
+  /// 在 macOS 菜单栏图标右侧显示两行上传和下载速率。
+  Future<void> setSpeedTitle({
+    required int upload,
+    required int download,
+    bool active = true,
+  }) async {
+    final Map<String, dynamic> arguments = {
+      'upload': upload,
+      'download': download,
+      'active': active,
+    };
+    await _channel.invokeMethod('setSpeedTitle', arguments);
+  }
+
+  /// 设置 macOS 菜单栏图标是否处于正在接管系统流量的状态。
+  Future<void> setActive(bool active) async {
+    await _channel.invokeMethod('setActive', {'active': active});
+  }
+
+  /// 清除 macOS 菜单栏图标右侧的速率。
+  Future<void> clearSpeedTitle() async {
+    await _channel.invokeMethod('clearSpeedTitle');
+  }
+
   /// Sets the context menu for this icon.
   ///
   Future<void> setContextMenu(
@@ -218,7 +280,7 @@ class TrayManager {
     bool keepMenuOpen = false,
     Brightness? brightness,
   }) async {
-    final bool willKeepOpen = keepMenuOpen && _isMenuOpen;
+    final bool willKeepOpen = keepMenuOpen && isMenuOpen;
     if (!willKeepOpen) {
       _menu = menu;
     }

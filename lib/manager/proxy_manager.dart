@@ -1,7 +1,7 @@
 import 'package:bett_box/common/proxy.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/providers/state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ProxyManager extends ConsumerStatefulWidget {
@@ -19,7 +19,7 @@ class _ProxyManagerState extends ConsumerState<ProxyManager> {
     final systemProxy = proxyState.systemProxy;
     final port = proxyState.port;
     if (isStart && systemProxy) {
-      proxy?.startProxy(port, proxyState.bassDomain);
+      proxy?.startProxy(port, proxyState.bypassDomain);
     } else {
       proxy?.stopProxy();
     }

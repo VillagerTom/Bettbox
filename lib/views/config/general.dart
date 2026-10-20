@@ -3,8 +3,9 @@ import 'package:bett_box/enum/enum.dart';
 import 'package:bett_box/models/models.dart';
 import 'package:bett_box/providers/providers.dart';
 import 'package:bett_box/state.dart';
+import 'package:bett_box/views/config/user_auth.dart';
 import 'package:bett_box/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,7 +21,7 @@ class LogLevelItem extends ConsumerWidget {
     return ListItem<LogLevel>.options(
       leading: const Icon(Icons.info_outline),
       title: Text(appLocalizations.logLevel),
-      subtitle: Text(logLevel.name),
+      subtitle: Text(logLevel.label),
       delegate: OptionsDelegate<LogLevel>(
         title: appLocalizations.logLevel,
         options: LogLevel.values,
@@ -32,7 +33,7 @@ class LogLevelItem extends ConsumerWidget {
               .read(patchClashConfigProvider.notifier)
               .updateState((state) => state.copyWith(logLevel: value));
         },
-        textBuilder: (logLevel) => logLevel.name,
+        textBuilder: (logLevel) => logLevel.label,
         value: logLevel,
       ),
     );
@@ -63,7 +64,9 @@ class _UaItemState extends ConsumerState<UaItem> {
     return ListItem(
       leading: const Icon(Icons.computer_outlined),
       title: const Text('UA'),
-      subtitle: Text(isCustom ? appLocalizations.custom : appLocalizations.defaultText),
+      subtitle: Text(
+        isCustom ? appLocalizations.custom : appLocalizations.defaultText,
+      ),
       onTap: () async {
         final notifier = ref.read(patchClashConfigProvider.notifier);
         final result = await globalState.showCommonDialog<_UaOption>(
@@ -90,7 +93,9 @@ class _UaItemState extends ConsumerState<UaItem> {
               ),
             );
             if (customUa != null && customUa.trim().isNotEmpty) {
-              notifier.updateState((state) => state.copyWith(globalUa: customUa.trim()));
+              notifier.updateState(
+                (state) => state.copyWith(globalUa: customUa.trim()),
+              );
             }
         }
       },
@@ -124,18 +129,28 @@ class _UaDialog extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                Navigator.of(context, rootNavigator: true).pop(const _UaOption(_UaOptionType.default_));
+                Navigator.of(
+                  context,
+                  rootNavigator: true,
+                ).pop(const _UaOption(_UaOptionType.default_));
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Icon(
-                      !isCustom ? Icons.check_circle_rounded : Icons.circle_outlined,
+                      !isCustom
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
                       size: 21,
                       color: !isCustom
                           ? context.colorScheme.primary
-                          : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                          : context.colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -152,18 +167,28 @@ class _UaDialog extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                Navigator.of(context, rootNavigator: true).pop(const _UaOption(_UaOptionType.custom));
+                Navigator.of(
+                  context,
+                  rootNavigator: true,
+                ).pop(const _UaOption(_UaOptionType.custom));
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Icon(
-                      isCustom ? Icons.check_circle_rounded : Icons.circle_outlined,
+                      isCustom
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
                       size: 21,
                       color: isCustom
                           ? context.colorScheme.primary
-                          : context.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                          : context.colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -279,7 +304,9 @@ class _TestUrlDialog extends ConsumerWidget {
                   value: overrideTestUrl,
                   onChanged: (bool value) async {
                     ref.read(overrideTestUrlProvider.notifier).value = value;
-                    globalState.appController.applyProfileDebounce(silence: true);
+                    globalState.appController.applyProfileDebounce(
+                      silence: true,
+                    );
                   },
                 ),
               ],
@@ -297,7 +324,9 @@ class _TestUrlDialog extends ConsumerWidget {
                       .read(appSettingProvider.notifier)
                       .updateState((state) => state.copyWith(testUrl: url));
                   if (ref.read(overrideTestUrlProvider)) {
-                    globalState.appController.applyProfileDebounce(silence: true);
+                    globalState.appController.applyProfileDebounce(
+                      silence: true,
+                    );
                   }
                   if (context.mounted) {
                     Navigator.of(context, rootNavigator: true).pop();
@@ -359,10 +388,14 @@ class _TestUrlDialog extends ConsumerWidget {
                     resetValue: defaultTestUrl,
                     validator: (String? inputValue) {
                       if (inputValue == null || inputValue.isEmpty) {
-                        return appLocalizations.emptyTip(appLocalizations.testUrl);
+                        return appLocalizations.emptyTip(
+                          appLocalizations.testUrl,
+                        );
                       }
-                      if (!inputValue.isUrl) {
-                        return appLocalizations.urlTip(appLocalizations.testUrl);
+                      if (!inputValue.isHttpUrl) {
+                        return appLocalizations.urlTip(
+                          appLocalizations.testUrl,
+                        );
                       }
                       return null;
                     },
@@ -370,9 +403,13 @@ class _TestUrlDialog extends ConsumerWidget {
                 );
 
                 if (customUrl != null) {
-                  notifier.updateState((state) => state.copyWith(testUrl: customUrl));
+                  notifier.updateState(
+                    (state) => state.copyWith(testUrl: customUrl),
+                  );
                   if (overrideTestUrl) {
-                    globalState.appController.applyProfileDebounce(silence: true);
+                    globalState.appController.applyProfileDebounce(
+                      silence: true,
+                    );
                   }
                 }
               },
@@ -463,6 +500,10 @@ class Ipv6Item extends ConsumerWidget {
 class AllowLanItem extends ConsumerWidget {
   const AllowLanItem({super.key});
 
+  Future<void> _showUserAuthDialog() async {
+    await globalState.showCommonDialog(child: const UserAuthDialog());
+  }
+
   @override
   Widget build(BuildContext context, ref) {
     final allowLan = ref.watch(
@@ -470,7 +511,31 @@ class AllowLanItem extends ConsumerWidget {
     );
     return ListItem.switchItem(
       leading: const Icon(Icons.device_hub),
-      title: Text(appLocalizations.allowLan),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(appLocalizations.allowLan),
+          Tooltip(
+            message: appLocalizations.userAuth,
+            child: Material(
+              color: Colors.transparent,
+              child: InkResponse(
+                radius: 16,
+                highlightShape: BoxShape.circle,
+                onTap: _showUserAuthDialog,
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Icon(
+                    Icons.settings_outlined,
+                    size: 18,
+                    color: context.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       subtitle: Text(appLocalizations.allowLanDesc),
       delegate: SwitchDelegate(
         value: allowLan,
@@ -566,38 +631,6 @@ class TcpConcurrentItem extends ConsumerWidget {
   }
 }
 
-class GeodataLoaderItem extends ConsumerWidget {
-  const GeodataLoaderItem({super.key});
-
-  @override
-  Widget build(BuildContext context, ref) {
-    final isMemconservative = ref.watch(
-      patchClashConfigProvider.select(
-        (state) => state.geodataLoader == GeodataLoader.memconservative,
-      ),
-    );
-    return ListItem.switchItem(
-      leading: const Icon(Icons.memory),
-      title: Text(appLocalizations.geodataLoader),
-      subtitle: Text(appLocalizations.geodataLoaderDesc),
-      delegate: SwitchDelegate(
-        value: isMemconservative,
-        onChanged: (bool value) async {
-          ref
-              .read(patchClashConfigProvider.notifier)
-              .updateState(
-                (state) => state.copyWith(
-                  geodataLoader: value
-                      ? GeodataLoader.memconservative
-                      : GeodataLoader.standard,
-                ),
-              );
-        },
-      ),
-    );
-  }
-}
-
 class ExternalControllerItem extends ConsumerWidget {
   const ExternalControllerItem({super.key});
 
@@ -610,7 +643,7 @@ class ExternalControllerItem extends ConsumerWidget {
     );
     final secret = hasExternalController
         ? ref.watch(patchClashConfigProvider.select((state) => state.secret)) ??
-            ''
+              ''
         : '';
 
     return Column(
@@ -653,8 +686,8 @@ class ExternalControllerItem extends ConsumerWidget {
             thickness: 1,
             color: context.colorScheme.outlineVariant.withValues(
               alpha: context.colorScheme.brightness == Brightness.light
-                  ? 0.3
-                  : 0.2,
+                  ? 0.6
+                  : 0.45,
             ),
             indent: 16,
             endIndent: 16,
@@ -769,20 +802,30 @@ class _SecretDialogState extends ConsumerState<_SecretDialog> {
   }
 }
 
-final generalItems = <Widget>[
-  LogLevelItem(),
-  UaItem(),
-  if (system.isDesktop) KeepAliveIntervalItem(),
-  TestUrlItem(),
-  PortItem(),
-  Ipv6Item(),
-  AllowLanItem(),
-  UnifiedDelayItem(),
-  FindProcessItem(),
-  TcpConcurrentItem(),
-  GeodataLoaderItem(),
-  ExternalControllerItem(),
-].separated(const Divider(height: 0)).toList();
+List<Widget> get generalItems => generateSection(
+  items: [
+    const LogLevelItem(),
+    const UaItem(),
+    if (system.isDesktop) const KeepAliveIntervalItem(),
+    const TestUrlItem(),
+    const PortItem(),
+    const Ipv6Item(),
+    const AllowLanItem(),
+    const UnifiedDelayItem(),
+    const FindProcessItem(),
+    const TcpConcurrentItem(),
+    const ExternalControllerItem(),
+  ],
+);
+
+class GeneralListView extends StatelessWidget {
+  const GeneralListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return generateListView(generalItems);
+  }
+}
 
 class _PortDialog extends ConsumerStatefulWidget {
   const _PortDialog();

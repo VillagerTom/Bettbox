@@ -6,13 +6,43 @@ import 'package:bett_box/state.dart';
 import 'package:bett_box/views/proxies/common.dart';
 import 'package:bett_box/widgets/widgets.dart';
 import 'package:emoji_regex/emoji_regex.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 
-final groupIconMapProvider = Provider<Map<String, String>>((ref) {
-  final groups = ref.watch(groupsProvider);
-  return {for (final g in groups) g.name: g.icon};
+final _proxyIconMatchersProvider = Provider.autoDispose<List<(RegExp, String)>>(
+  (ref) {
+    final iconMap = ref.watch(
+      proxiesStyleSettingProvider.select((s) => s.iconMap),
+    );
+    final matchers = <(RegExp, String)>[];
+    for (final entry in iconMap.entries) {
+      try {
+        matchers.add((RegExp(entry.key), entry.value));
+      } catch (_) {}
+    }
+    return matchers;
+  },
+);
+
+final proxyIconProvider = Provider.autoDispose.family<String, String>((
+  ref,
+  proxyName,
+) {
+  if (proxyName.isEmpty) return '';
+  final style = ref.watch(
+    proxiesStyleSettingProvider.select((s) => s.iconStyle),
+  );
+  if (style == ProxiesIconStyle.none) return '';
+
+  for (final (pattern, icon) in ref.watch(_proxyIconMatchersProvider)) {
+    if (pattern.hasMatch(proxyName)) {
+      return icon;
+    }
+  }
+
+  return ref.watch(
+    groupsProvider.select((groups) => groups.getGroup(proxyName)?.icon ?? ''),
+  );
 });
 
 class ProxyCard extends StatelessWidget {
@@ -20,10 +50,7 @@ class ProxyCard extends StatelessWidget {
   static final Map<String, bool> _emojiMatchCache = {};
 
   static bool _hasEmoji(String name) {
-    return _emojiMatchCache.putIfAbsent(
-      name,
-      () => _emojiRegex.hasMatch(name),
-    );
+    return _emojiMatchCache.putIfAbsent(name, () => _emojiRegex.hasMatch(name));
   }
 
   final String groupName;
@@ -76,13 +103,11 @@ class ProxyCard extends StatelessWidget {
             return SizedBox(
               height: measure.labelSmallHeight,
               width: measure.labelSmallHeight,
-              child: delayAnimation == DelayAnimationType.none
-                  ? const CircularProgressIndicator(strokeWidth: 2)
-                  : _buildDelayAnimation(
-                      delayAnimation,
-                      measure.labelSmallHeight,
-                      context.colorScheme.primary,
-                    ),
+              child: DelayAnimation(
+                type: delayAnimation,
+                size: measure.labelSmallHeight,
+                color: context.colorScheme.primary,
+              ),
             );
           }
 
@@ -90,11 +115,14 @@ class ProxyCard extends StatelessWidget {
             return SizedBox(
               height: measure.labelSmallHeight,
               width: measure.labelSmallHeight,
-              child: IconButton(
-                icon: const Icon(Icons.bolt),
-                iconSize: measure.labelSmallHeight,
-                padding: EdgeInsets.zero,
-                onPressed: _handleTestCurrentDelay,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _handleTestCurrentDelay,
+                child: Icon(
+                  Icons.bolt,
+                  size: measure.labelSmallHeight,
+                  color: context.colorScheme.onSurfaceVariant,
+                ),
               ),
             );
           }
@@ -114,47 +142,6 @@ class ProxyCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDelayAnimation(
-    DelayAnimationType animationType,
-    double size,
-    Color color,
-  ) {
-    return switch (animationType) {
-      DelayAnimationType.none => Icon(Icons.bolt, size: size),
-      DelayAnimationType.rotatingCircle => SpinKitRotatingCircle(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.pulse => SpinKitPulse(color: color, size: size),
-      DelayAnimationType.spinningLines => SpinKitSpinningLines(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.threeInOut => SpinKitThreeInOut(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.threeBounce => SpinKitThreeBounce(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.circle => SpinKitCircle(color: color, size: size),
-      DelayAnimationType.fadingCircle => SpinKitFadingCircle(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.fadingFour => SpinKitFadingFour(
-        color: color,
-        size: size,
-      ),
-      DelayAnimationType.wave => SpinKitWave(color: color, size: size),
-      DelayAnimationType.doubleBounce => SpinKitDoubleBounce(
-        color: color,
-        size: size,
-      ),
-    };
-  }
-
   Widget _buildProxyNameWithIcon(
     BuildContext context,
     WidgetRef ref, {
@@ -164,10 +151,7 @@ class ProxyCard extends StatelessWidget {
 
     Widget wrapPadding(Widget child) {
       if (showComputedMark) {
-        return Padding(
-          padding: const EdgeInsets.only(right: 28),
-          child: child,
-        );
+        return Padding(padding: const EdgeInsets.only(right: 28), child: child);
       }
       return child;
     }
@@ -176,9 +160,7 @@ class ProxyCard extends StatelessWidget {
       return wrapPadding(nameWidget);
     }
 
-    final subGroupIcon = ref.watch(
-      groupIconMapProvider.select((map) => map[proxy.name] ?? ''),
-    );
+    final subGroupIcon = ref.watch(proxyIconProvider(proxy.name));
     if (subGroupIcon.isEmpty) {
       return wrapPadding(nameWidget);
     }
@@ -197,17 +179,15 @@ class ProxyCard extends StatelessWidget {
 
   bool _isSelectedProxy(WidgetRef ref) {
     return ref.watch(
-      getSelectedProxyNameProvider(groupName).select(
-        (name) => name == proxy.name,
-      ),
+      getSelectedProxyNameProvider(
+        groupName,
+      ).select((name) => name == proxy.name),
     );
   }
 
   bool _isComputedMatch(WidgetRef ref) {
     return ref.watch(
-      getProxyNameProvider(groupName).select(
-        (name) => name == proxy.name,
-      ),
+      getProxyNameProvider(groupName).select((name) => name == proxy.name),
     );
   }
 
@@ -258,8 +238,8 @@ class ProxyCard extends StatelessWidget {
     return Consumer(
       builder: (_, ref, child) {
         final isSelected = _isSelectedProxy(ref);
-        final isComputedMatch = groupType.isComputedSelected &&
-            _isComputedMatch(ref);
+        final isComputedMatch =
+            groupType.isComputedSelected && _isComputedMatch(ref);
         final proxyNameWidget = _buildProxyNameWithIcon(
           context,
           ref,
@@ -268,6 +248,8 @@ class ProxyCard extends StatelessWidget {
         return Stack(
           children: [
             CommonCard(
+              elevated: false,
+              clipBehavior: Clip.none,
               onPressed: () {
                 _changeProxy(ref);
               },
@@ -324,15 +306,14 @@ class ProxyCard extends StatelessWidget {
                               child: TooltipText(
                                 text: Text(
                                   proxy.type,
-                                  style: context.textTheme.bodySmall
-                                      ?.copyWith(
-                                        overflow: TextOverflow.ellipsis,
-                                        color: context
-                                            .textTheme
-                                            .bodySmall
-                                            ?.color
-                                            ?.opacity80,
-                                      ),
+                                  style: context.textTheme.bodySmall?.copyWith(
+                                    overflow: TextOverflow.ellipsis,
+                                    color: context
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color
+                                        ?.opacity80,
+                                  ),
                                 ),
                               ),
                             ),

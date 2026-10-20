@@ -39,16 +39,21 @@ class MakeAppImageConfig extends MakeConfig {
     this.actions = const [],
     this.include = const [],
     this.startupNotify = true,
+    this.startupWMClass,
     this.genericName = 'A Flutter Application',
-  });
+    Map<String, String>? extraFiles,
+  }) : extraFiles = extraFiles ?? {};
   factory MakeAppImageConfig.fromJson(Map<String, dynamic> map) {
     return MakeAppImageConfig(
       displayName: map['display_name'] as String,
       icon: map['icon'] as String,
+      extraFiles: (map['extra_files'] as Map?)
+          ?.map((key, value) => MapEntry('$key', '$value')),
       include: (map['include'] as List<dynamic>? ?? []).cast<String>(),
       keywords: (map['keywords'] as List<dynamic>? ?? []).cast<String>(),
       categories: (map['categories'] as List<dynamic>? ?? []).cast<String>(),
       startupNotify: map['startup_notify'] as bool? ?? false,
+      startupWMClass: map['startup_wm_class'] as String?,
       genericName: map['generic_name'] as String? ?? 'A Flutter Application',
       actions: (map['actions'] as List? ?? [])
           .map(
@@ -65,18 +70,22 @@ class MakeAppImageConfig extends MakeConfig {
   final List<String> categories;
   final List<AppImageAction> actions;
   final bool startupNotify;
+  final String? startupWMClass;
   final String genericName;
   final String displayName;
   final List<String> include;
+
+  final Map<String, String> extraFiles;
 
   String get desktopFileContent {
     final fields = {
       'Name': displayName,
       'GenericName': genericName,
-      'Exec': 'LD_LIBRARY_PATH=usr/lib $appName %u',
+      'Exec': '$appName %u',
       'Icon': appName,
       'Type': 'Application',
       'StartupNotify': startupNotify ? 'true' : 'false',
+      if (startupWMClass != null) 'StartupWMClass': startupWMClass!,
       if (categories.isNotEmpty) 'Categories': categories.join(';'),
       if (keywords.isNotEmpty) 'Keywords': keywords.join(';'),
       if (this.actions.isNotEmpty)
@@ -86,8 +95,7 @@ class MakeAppImageConfig extends MakeConfig {
     final actions = this.actions.map((action) {
       final fields = {
         'Name': action.name,
-        'Exec':
-            'LD_LIBRARY_PATH=usr/lib $appName ${action.arguments.join(' ')} %u',
+        'Exec': '$appName ${action.arguments.join(' ')} %u',
       };
       return '[Desktop Action ${action.label}]\n${fields.entries.map((e) => '${e.key}=${e.value}').join('\n')}';
     }).join('\n\n');
@@ -97,11 +105,18 @@ class MakeAppImageConfig extends MakeConfig {
 
   String get appRunContent {
     return '''
-#!/bin/bash
+#!/bin/sh
 
-cd "\$(dirname "\$0")"
-export LD_LIBRARY_PATH=usr/lib
-exec ./$appName
+HERE="\$(dirname "\$(readlink -f "\${0}")")"
+export APPDIR="\$HERE"
+
+if [ -n "\$LD_LIBRARY_PATH" ]; then
+  export LD_LIBRARY_PATH="\$HERE/usr/lib:\$HERE/lib:\$LD_LIBRARY_PATH"
+else
+  export LD_LIBRARY_PATH="\$HERE/usr/lib:\$HERE/lib"
+fi
+
+exec "\$HERE/$appName" "\$@"
 ''';
   }
 }
