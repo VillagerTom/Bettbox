@@ -7,6 +7,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
+	"maps"
+	"os"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
@@ -26,11 +34,6 @@ import (
 	"github.com/metacubex/mihomo/log"
 	rp "github.com/metacubex/mihomo/rules/provider"
 	"github.com/metacubex/mihomo/tunnel"
-	"os"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"time"
 )
 
 var (
@@ -41,12 +44,6 @@ var (
 	runLock          sync.Mutex
 	mBatch, _        = batch.New[bool](context.Background(), batch.WithConcurrencyNum[bool](50))
 )
-
-type ExternalProviders []ExternalProvider
-
-func (a ExternalProviders) Len() int           { return len(a) }
-func (a ExternalProviders) Less(i, j int) bool { return a[i].Name < a[j].Name }
-func (a ExternalProviders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func getExternalProvidersRaw() map[string]cp.Provider {
 	eps := make(map[string]cp.Provider)
@@ -70,7 +67,6 @@ func toExternalProvider(p cp.Provider) (*ExternalProvider, error) {
 			UpdateAt:         p.UpdatedAt(),
 			Path:             p.Vehicle().Path(),
 			SubscriptionInfo: p.GetSubscriptionInfo(),
-			Proxies:          p.Proxies(),
 		}, nil
 	case *provider.InlineProvider:
 		return &ExternalProvider{
@@ -81,7 +77,6 @@ func toExternalProvider(p cp.Provider) (*ExternalProvider, error) {
 			UpdateAt:         time.Now(),
 			Path:             "",
 			SubscriptionInfo: nil,
-			Proxies:          p.Proxies(),
 		}, nil
 	case *rp.RuleSetProvider:
 		return &ExternalProvider{
@@ -173,7 +168,12 @@ func defaultSetupParams() *SetupParams {
 }
 
 func readFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
+	file, err := openInputFile(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return io.ReadAll(file)
 }
 
 func updateConfig(params *UpdateParams) {
@@ -269,9 +269,6 @@ func updateConfig(params *UpdateParams) {
 		general.Tun.DNSHijack = *params.Tun.DNSHijack
 		general.Tun.Stack = *params.Tun.Stack
 		general.Tun.DisableICMPForwarding = *params.Tun.DisableICMPForwarding
-		if params.Tun.CongestionController != nil {
-			general.Tun.CongestionController = *params.Tun.CongestionController
-		}
 	}
 
 	updateListeners()
@@ -374,6 +371,16 @@ func tryUnloadGeoData() {
 	}
 }
 
+func residentRawConfig(raw *config.RawConfig) *config.RawConfig {
+	if raw == nil {
+		return nil
+	}
+	resident := *raw
+	resident.Proxy = nil
+	resident.ProxyGroup = nil
+	return &resident
+}
+
 type preparedSetup struct {
 	key    string
 	rawCfg *config.RawConfig
@@ -386,6 +393,7 @@ type preparedSetup struct {
 var (
 	preparedSetupLock  sync.Mutex
 	lastPreparedSetup  *preparedSetup
+	preparedSetupTimer *time.Timer
 	preparedSetupLimit = time.Minute
 )
 
@@ -395,8 +403,18 @@ func storePreparedSetup(prepared *preparedSetup) {
 	}
 	prepared.expire = time.Now().Add(preparedSetupLimit)
 	preparedSetupLock.Lock()
+	defer preparedSetupLock.Unlock()
 	lastPreparedSetup = prepared
-	preparedSetupLock.Unlock()
+	if preparedSetupTimer != nil {
+		preparedSetupTimer.Stop()
+	}
+	preparedSetupTimer = time.AfterFunc(preparedSetupLimit, func() {
+		preparedSetupLock.Lock()
+		defer preparedSetupLock.Unlock()
+		if lastPreparedSetup == prepared {
+			lastPreparedSetup = nil
+		}
+	})
 }
 
 func takePreparedSetup(key string) *preparedSetup {
@@ -478,12 +496,14 @@ func prepareSetup(params *SetupParams) (*preparedSetup, error) {
 	if err != nil {
 		return nil, err
 	}
+	ensureTunInet6(cfg)
 	return &preparedSetup{key: key, rawCfg: rawCfg, cfg: cfg, global: global}, nil
 }
 
 func setupConfig(params *SetupParams) (string, error) {
 	runLock.Lock()
 	defer runLock.Unlock()
+	cancelDelayBatches()
 
 	constant.DefaultTestURL = params.TestURL
 
@@ -494,16 +514,17 @@ func setupConfig(params *SetupParams) (string, error) {
 	}
 	preloadBundledRuleSets(prepared.rawCfg)
 	applyStart := time.Now()
+	oldProxies, oldProviders := tunnel.Proxies(), tunnel.Providers()
 	currentConfig = prepared.cfg
-	currentRawConfig = prepared.rawCfg
+	currentRawConfig = residentRawConfig(prepared.rawCfg)
 	hub.ApplyConfig(currentConfig)
+	closeIdleOutbounds(oldProxies, oldProviders)
 	resetGroupShapes()
+	resetDelayState()
 	selectedMap := params.SelectedMap
 	if prepared.global != "" {
 		selectedMap = make(map[string]string, len(params.SelectedMap)+1)
-		for name, proxy := range params.SelectedMap {
-			selectedMap[name] = proxy
-		}
+		maps.Copy(selectedMap, params.SelectedMap)
 		selectedMap["GLOBAL"] = prepared.global
 	}
 	patchSelectGroup(selectedMap)
