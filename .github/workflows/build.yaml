@@ -235,6 +235,9 @@ jobs:
         uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          # Pin an auto-created release tag to the commit this run built,
+          # instead of the repository default branch (the action's default).
+          target_commitish: ${{ github.sha }}
           files: ./dist/*
           body_path: './release.md'
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
