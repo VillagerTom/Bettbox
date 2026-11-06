@@ -14,6 +14,9 @@ env:
   
 jobs:
   metadata:
+    # Maintenance pushes can opt out of CI with a `[skip ci]` marker in the
+    # commit message. Dependent jobs are skipped automatically.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
     outputs:
       latest_tag: ${{ steps.tag.outputs.latest_tag }}
