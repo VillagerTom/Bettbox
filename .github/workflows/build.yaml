@@ -43,6 +43,18 @@ jobs:
           latest_tag="$(git describe --tags --abbrev=0 --exclude='*-android-legacy' 2>/dev/null || true)"
           echo "latest_tag=${latest_tag}" >> "$GITHUB_OUTPUT"
 
+          # Guard: the branch must reflect the newest upstream release. If
+          # upstream published a tag this branch does not carry, fail loudly
+          # instead of releasing under a stale/wrong name.
+          upstream_latest="$(git tag --list 'v*' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$' \
+            | sort -V | tail -n1 || true)"
+          if [ -n "$upstream_latest" ] && [ "$latest_tag" != "$upstream_latest" ]; then
+            echo "::error::branch reflects '${latest_tag:-<none>}' but newest upstream release is '$upstream_latest'"
+            echo "::error::reconcile first, e.g. git merge $upstream_latest  (or scripts/reconcile-upstream-tag.sh $upstream_latest)"
+            exit 1
+          fi
+
           if [ -n "${latest_tag}" ] && [[ "${latest_tag}" != *-* ]]; then
             echo "is_stable=true" >> "$GITHUB_OUTPUT"
           else
