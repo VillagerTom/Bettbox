@@ -1,5 +1,5 @@
 # Bettbox Legacy 预览版本发布
-**注意：预览版本通常包含最新的功能修复增强或不确定性，如遇问题请提交issue[[反馈]](https://github.com/appshubcc/Bettbox/issues/new?template=bug_report.yml)联系社区交流。**
+**注意：预览版本通常包含最新的功能修复增强或不确定性，如遇问题请提交issue[[反馈]](https://github.com/VillagerTom/Bettbox/issues/new?template=bug_report.yml)联系社区交流。**
 ***请勿向上游反馈 Legacy 版本独有 bug！***
 
 <div align="left">
@@ -25,7 +25,7 @@
 
 | **OS/ 系统** | **Requirements / 版本要求** | **Direct Links / 点击直链下载** |
 |:---:|:---|:---|
-| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" alt="Android" width="28"/> | Android 7.1+<br>*(Compatible with Android TV)* |<a href="https://github.com/appshubcc/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-arm64-v8a.apk"><img src="https://img.shields.io/badge/APK-ARMv8-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> <a href="https://github.com/appshubcc/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-x86_64.apk"><img src="https://img.shields.io/badge/APK-x64-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a><br><a href="https://github.com/appshubcc/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-armeabi-v7a.apk"><img src="https://img.shields.io/badge/APK-ARMv7-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> <a href="https://github.com/appshubcc/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-universal.apk"><img src="https://img.shields.io/badge/APK-Universal-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> |
+| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" alt="Android" width="28"/> | Android 7.0+<br>*(Compatible with Android TV)* |<a href="https://github.com/VillagerTom/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-arm64-v8a.apk"><img src="https://img.shields.io/badge/APK-ARMv8-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> <a href="https://github.com/VillagerTom/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-x86_64.apk"><img src="https://img.shields.io/badge/APK-x64-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a><br><a href="https://github.com/VillagerTom/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-armeabi-v7a.apk"><img src="https://img.shields.io/badge/APK-ARMv7-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> <a href="https://github.com/VillagerTom/Bettbox/releases/download/RELEASE_TAG/Bettbox-BASE_VERSION-android-universal.apk"><img src="https://img.shields.io/badge/APK-Universal-32AF6A?logo=android&logoColor=white&style=flat-square&labelColor=222222"></a> |
 ---
 </div>
 
