@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - android_legacy
-    tags:
-      - 'v*'
 
 env:
   GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
@@ -38,7 +36,11 @@ jobs:
         id: tag
         shell: bash
         run: |
-          latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          # Exclude this fork's own release tags: they are reachable and close,
+          # so an unqualified `git describe` would pick e.g.
+          # `v1.19.8-pre1-android-legacy` and the release name would get a
+          # second `-android-legacy` suffix.
+          latest_tag="$(git describe --tags --abbrev=0 --exclude='*-android-legacy' 2>/dev/null || true)"
           echo "latest_tag=${latest_tag}" >> "$GITHUB_OUTPUT"
 
           if [ -n "${latest_tag}" ] && [[ "${latest_tag}" != *-* ]]; then
