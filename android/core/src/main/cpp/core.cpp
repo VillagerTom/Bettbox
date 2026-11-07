@@ -9,8 +9,9 @@
 #endif
 
 // bionic only exposes mallopt() (and the M_PURGE* options) from API 26 on.
-// This app still supports API 25, so declare it weak: the runtime resolves
-// the symbol normally on API 26+ and leaves it null on older releases.
+// This app still supports API levels below 26, so declare it weak: the
+// runtime resolves the symbol normally on API 26+ and leaves it null on older
+// releases.
 #if defined(__ANDROID_API__) && __ANDROID_API__ < 26
 extern "C" int mallopt(int option, int value) __attribute__((weak));
 #endif
