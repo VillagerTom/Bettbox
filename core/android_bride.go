@@ -13,9 +13,21 @@ package main
 #define M_PURGE_ALL (-104)
 #endif
 
+// bionic only exposes mallopt() (and the M_PURGE* options) from API 26 on.
+// This app still supports API 25, so declare it weak: the runtime resolves
+// the symbol normally on API 26+ and leaves it null on older releases.
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 26
+extern int mallopt(int __option, int __value) __attribute__((weak));
+#else
 extern int mallopt(int __option, int __value);
+#endif
 
 static void purge_memory(void) {
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 26
+    if (mallopt == NULL) {
+        return;
+    }
+#endif
     if (mallopt(M_PURGE_ALL, 0) == 1) {
         return;
     }
