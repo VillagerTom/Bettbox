@@ -51,7 +51,7 @@ jobs:
             | sort -V | tail -n1 || true)"
           if [ -n "$upstream_latest" ] && [ "$latest_tag" != "$upstream_latest" ]; then
             echo "::error::branch reflects '${latest_tag:-<none>}' but newest upstream release is '$upstream_latest'"
-            echo "::error::reconcile first, e.g. git merge $upstream_latest  (or scripts/reconcile-upstream-tag.sh $upstream_latest)"
+            echo "::error::reconcile first, e.g. git merge $upstream_latest  (or scripts/reconcile-upstream.sh $upstream_latest)"
             exit 1
           fi
 

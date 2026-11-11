@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# reconcile-upstream-tag.sh [TARGET]
+# reconcile-upstream.sh [TARGET]
 #
 # Strip from the fork branch the upstream commits that TARGET no longer
 # contains ("abandoned" commits), then make TARGET an ancestor of the branch.
@@ -27,6 +27,9 @@
 #   UPSTREAM_REMOTE  remote name                      (default upstream)
 #   UPSTREAM_URL     url used if the remote is absent (default appshubcc/Bettbox)
 #   PUSH=1           push the branch when done        (default: no push)
+#   DRY_RUN=1        stop after the pre-flight dry run (default: apply)
+#
+# Run with -h/--help for the full usage.
 #
 set -euo pipefail
 
@@ -35,12 +38,67 @@ remote=${UPSTREAM_REMOTE:-upstream}
 upstream_url=${UPSTREAM_URL:-https://github.com/appshubcc/Bettbox.git}
 push=${PUSH:-0}
 dry_run=${DRY_RUN:-0}
-target_arg=${1:-}
 release_re='^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$'
 exclude_re='-android-legacy$'
 
 say() { printf '==> %s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+Usage: reconcile-upstream.sh [TARGET]
+
+Make TARGET an ancestor of the fork branch by reverting the upstream commits
+that TARGET no longer contains ("abandoned" commits), then merging TARGET.
+Run it after upstream rewrites `main` (force-push) and the branch still carries
+commits from the old line.
+
+Arguments:
+  TARGET   upstream commit-ish to adopt; defaults to the newest upstream
+           release tag matching vX.Y.Z[-preN] (e.g. v1.19.8-pre1).
+           Examples: v1.19.8-pre1, upstream/main, a commit hash.
+
+Options:
+  -h, --help   show this help and exit
+
+Environment variables (no flags):
+  BRANCH           branch to reconcile                (default: android_legacy)
+  UPSTREAM_REMOTE  remote name                        (default: upstream)
+  UPSTREAM_URL     URL used if the remote is absent   (default: appshubcc/Bettbox)
+  PUSH=1           push the branch when done          (default: no push)
+  DRY_RUN=1        stop after the pre-flight dry run  (default: apply)
+
+Exit status:
+  0   reconciled, or already up to date
+  1   precondition or usage error
+  2   a revert conflicts; nothing was changed
+
+The dry run always runs first: the whole revert series is simulated, the first
+conflicting commit is named, and the working tree is left untouched.
+EOF
+}
+
+# --- arguments -------------------------------------------------------------
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unknown option: $1 (try --help)"
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+[ $# -le 1 ] || die "too many arguments (try --help)"
+target_arg=${1:-}
 
 # --- preconditions ---------------------------------------------------------
 [ -z "$(git status --porcelain)" ] || die "working tree not clean"
