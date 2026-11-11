@@ -22,12 +22,17 @@
 # upstream, so nothing of ours lives inside an upstream merge and there is no
 # merge-unique content of ours to preserve — we just mirror TARGET.
 #
+# The revert series is incremental and resumable. A commit whose revert commit
+# already exists on the branch (standard "This reverts commit <sha>." trailer)
+# is skipped, so a conflict is a pause point, not a dead end: resolve it, run
+# `git revert --continue`, and re-run. The final merge is handled the same way:
+# on conflict it is left in the working tree for you to commit.
+#
 # Env:
 #   BRANCH           branch to reconcile              (default android_legacy)
 #   UPSTREAM_REMOTE  remote name                      (default upstream)
 #   UPSTREAM_URL     url used if the remote is absent (default appshubcc/Bettbox)
 #   PUSH=1           push the branch when done        (default: no push)
-#   DRY_RUN=1        stop after the pre-flight dry run (default: apply)
 #
 # Run with -h/--help for the full usage.
 #
@@ -37,7 +42,6 @@ branch=${BRANCH:-android_legacy}
 remote=${UPSTREAM_REMOTE:-upstream}
 upstream_url=${UPSTREAM_URL:-https://github.com/appshubcc/Bettbox.git}
 push=${PUSH:-0}
-dry_run=${DRY_RUN:-0}
 release_re='^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$'
 exclude_re='-android-legacy$'
 
@@ -66,15 +70,16 @@ Environment variables (no flags):
   UPSTREAM_REMOTE  remote name                        (default: upstream)
   UPSTREAM_URL     URL used if the remote is absent   (default: appshubcc/Bettbox)
   PUSH=1           push the branch when done          (default: no push)
-  DRY_RUN=1        stop after the pre-flight dry run  (default: apply)
 
 Exit status:
   0   reconciled, or already up to date
   1   precondition or usage error
-  2   a revert conflicts; nothing was changed
+  2   a revert or the final merge conflicts; it is left in the working tree
 
-The dry run always runs first: the whole revert series is simulated, the first
-conflicting commit is named, and the working tree is left untouched.
+Resumable: a commit whose revert commit is already on the branch (standard
+"This reverts commit <sha>." trailer) is skipped, so a conflict is a pause
+point. Resolve it, run `git revert --continue` (or `git commit` for a merge
+conflict), then re-run this script to continue.
 EOF
 }
 
@@ -101,6 +106,11 @@ done
 target_arg=${1:-}
 
 # --- preconditions ---------------------------------------------------------
+for marker in REVERT_HEAD CHERRY_PICK_HEAD MERGE_HEAD; do
+  if [ -e "$(git rev-parse --git-path "$marker")" ]; then
+    die "a revert/merge is in progress; finish it (--continue) or abort it (--abort) first"
+  fi
+done
 [ -z "$(git status --porcelain)" ] || die "working tree not clean"
 git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null || die "no branch: $branch"
 [ "$(git branch --show-current)" = "$branch" ] || die "checkout '$branch' first"
@@ -137,60 +147,57 @@ if [ -n "$old" ]; then
   mapfile -t abandoned < <(git rev-list "$old" --not "$target_sha")
 fi
 
-if [ "${#abandoned[@]}" -eq 0 ] && git merge-base --is-ancestor "$target_sha" HEAD; then
-  say "nothing abandoned and $target is already an ancestor — up to date"
-  exit 0
-fi
-
 is_merge() { [ "$(git rev-list --parents -n1 "$1" | wc -w)" -gt 2 ]; }
 
-revert_one() { # revert_one <commit> <mode: dry|apply>
-  local c=$1 mode=$2
+revert_one() { # revert_one <commit>
+  local c=$1
   if is_merge "$c"; then
-    if [ "$mode" = dry ]; then git revert -n -m 1 --no-edit "$c" >/dev/null 2>&1
-    else                        git revert    -m 1 --no-edit "$c"; fi
+    git revert -m 1 --no-edit "$c"
   else
-    if [ "$mode" = dry ]; then git revert -n --no-edit "$c" >/dev/null 2>&1
-    else                        git revert    --no-edit "$c"; fi
+    git revert --no-edit "$c"
   fi
 }
 
-# --- pre-flight: surface the first revert that would conflict ---------------
-# Simulate the whole sequence first (no lasting change) so we report the exact
-# commit that breaks instead of leaving half-applied reverts behind.
-clean_count=0
-conflict_commit=""
+already_reverted() { # already_reverted <full-sha>
+  # Matches the standard trailer of a revert commit. A revert that was later
+  # re-applied ("Revert "Revert ..."") is still reported as reverted — rare,
+  # resolve by hand if it ever happens.
+  local c=$1 range
+  if [ -n "$old" ]; then range="$old..HEAD"; else range=HEAD; fi
+  git log --format=%H --grep="^This reverts commit $c\.$" "$range" | grep -q .
+}
+
+# --- drop commits whose revert is already on the branch --------------------
+pending=()
 if [ "${#abandoned[@]}" -gt 0 ]; then
-  start_sha=$(git rev-parse HEAD)
   for c in "${abandoned[@]}"; do
-    if revert_one "$c" dry; then clean_count=$((clean_count + 1)); else conflict_commit=$c; break; fi
+    if already_reverted "$c"; then
+      say "  skip    $(git log --oneline --no-decorate -1 "$c")  (already reverted)"
+    else
+      pending+=("$c")
+    fi
   done
-  git revert --abort >/dev/null 2>&1 || true
-  git reset -q --hard "$start_sha"
-  [ -z "$(git status --porcelain)" ] || die "dry-run left the tree dirty; refusing to continue"
 fi
 
-if [ -n "$conflict_commit" ]; then
-  say "DRY-RUN: ${clean_count}/${#abandoned[@]} revert cleanly, then this conflicts:"
-  say "         $(git log --oneline --no-decorate -1 "$conflict_commit")"
-  say "         nothing changed; resolve manually or choose another TARGET"
-  exit 2
-fi
-say "dry-run: all ${#abandoned[@]} revert(s) apply cleanly"
-
-if [ "$dry_run" = 1 ]; then
-  say "DRY_RUN=1: stopping before applying"
+if [ "${#pending[@]}" -eq 0 ] && git merge-base --is-ancestor "$target_sha" HEAD; then
+  say "nothing left to revert and $target is already an ancestor — up to date"
   exit 0
 fi
+say "abandoned: ${#abandoned[@]}, already reverted: $(( ${#abandoned[@]} - ${#pending[@]} )), to revert: ${#pending[@]}"
 
 # --- apply the reverts (newest first) --------------------------------------
-if [ "${#abandoned[@]}" -gt 0 ]; then
-  say "reverting ${#abandoned[@]} abandoned commit(s)"
-  for c in "${abandoned[@]}"; do
+if [ "${#pending[@]}" -gt 0 ]; then
+  for c in "${pending[@]}"; do
     say "  git revert$(is_merge "$c" && printf ' -m 1' || true) $(git log --oneline --no-decorate -1 "$c")"
-    if ! revert_one "$c" apply; then
-      git revert --abort 2>/dev/null || true
-      die "unexpected conflict at $c; resolve manually"
+    if ! revert_one "$c"; then
+      if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+        say "CONFLICT while reverting $(git log --oneline --no-decorate -1 "$c")"
+        say "  resolve the conflicts, then run:  git revert --continue"
+        say "  re-run this script afterwards; already-reverted commits are skipped"
+        exit 2
+      fi
+      git revert --quit >/dev/null 2>&1 || true
+      say "  no changes to commit (already in the target state); continuing"
     fi
   done
 fi
@@ -201,8 +208,14 @@ if git merge-base --is-ancestor "$target_sha" HEAD; then
 else
   say "merging $target"
   if ! git merge --no-ff -m "Merge $target into $branch" "$target_sha"; then
-    git merge --abort 2>/dev/null || true
-    die "merge of $target hit a conflict; resolve manually"
+    if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+      say "CONFLICT while merging $target"
+      say "  resolve the conflicts, then commit the merge:  git commit"
+      say "  or abort it:  git merge --abort"
+      exit 2
+    fi
+    git merge --abort >/dev/null 2>&1 || true
+    die "merge of $target failed; see git output above"
   fi
 fi
 
