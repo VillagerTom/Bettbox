@@ -32,7 +32,6 @@
 #   BRANCH           branch to reconcile              (default android_legacy)
 #   UPSTREAM_REMOTE  remote name                      (default upstream)
 #   UPSTREAM_URL     url used if the remote is absent (default appshubcc/Bettbox)
-#   PUSH=1           push the branch when done        (default: no push)
 #
 # Run with -h/--help for the full usage.
 #
@@ -41,7 +40,6 @@ set -euo pipefail
 branch=${BRANCH:-android_legacy}
 remote=${UPSTREAM_REMOTE:-upstream}
 upstream_url=${UPSTREAM_URL:-https://github.com/appshubcc/Bettbox.git}
-push=${PUSH:-0}
 release_re='^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$'
 exclude_re='-android-legacy$'
 
@@ -69,7 +67,6 @@ Environment variables (no flags):
   BRANCH           branch to reconcile                (default: android_legacy)
   UPSTREAM_REMOTE  remote name                        (default: upstream)
   UPSTREAM_URL     URL used if the remote is absent   (default: appshubcc/Bettbox)
-  PUSH=1           push the branch when done          (default: no push)
 
 Exit status:
   0   reconciled, or already up to date
@@ -221,10 +218,3 @@ fi
 
 git merge-base --is-ancestor "$target_sha" HEAD || die "post-check failed: $target is not an ancestor"
 say "OK: $target is now an ancestor of $branch"
-
-if [ "$push" = 1 ]; then
-  say "pushing $branch"
-  git push origin "$branch"
-else
-  say "done (not pushed; set PUSH=1 to push)"
-fi
