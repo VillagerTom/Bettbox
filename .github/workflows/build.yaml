@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - android_legacy
+  workflow_dispatch:
+
+# A push and a manual dispatch can target the same commit and therefore the
+# same release tag; serialize runs per ref so two runs never write one release.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
@@ -13,7 +20,9 @@ env:
 jobs:
   metadata:
     # Maintenance pushes can opt out of CI with a `[skip ci]` marker in the
-    # commit message. Dependent jobs are skipped automatically.
+    # commit message. Dependent jobs are skipped automatically. A manual
+    # dispatch has no head_commit, so the marker never matches and a dispatch
+    # always runs — that is the intended escape hatch.
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
     outputs:
@@ -32,30 +41,34 @@ jobs:
           git remote add upstream https://github.com/appshubcc/Bettbox.git
           git fetch --tags --force upstream
 
-      - name: Read latest tag
+      - name: Read upstream tag
         id: tag
         shell: bash
         run: |
-          # Exclude this fork's own release tags: they are reachable and close,
-          # so an unqualified `git describe` would pick e.g.
-          # `v1.19.8-pre1-android-legacy` and the release name would get a
-          # second `-android-legacy` suffix.
-          latest_tag="$(git describe --tags --abbrev=0 --exclude='*-android-legacy' 2>/dev/null || true)"
-          echo "latest_tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+          # Name the release after the upstream release this tree is based on:
+          # the newest upstream release tag visible on this branch (an ancestor
+          # of HEAD). Naming by that tag rather than by the newest tag upstream
+          # is what lets an older version be re-released after a re-tag.
+          tags="$(git for-each-ref --sort=-creatordate \
+            --format='%(refname:short)' refs/tags \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$' || true)"
+          latest_tag=""
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            if git merge-base --is-ancestor "$t" HEAD; then
+              latest_tag=$t
+              break
+            fi
+          done <<< "$tags"
 
-          # Guard: the branch must reflect the newest upstream release. If
-          # upstream published a tag this branch does not carry, fail loudly
-          # instead of releasing under a stale/wrong name.
-          upstream_latest="$(git tag --list 'v*' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$' \
-            | sort -V | tail -n1 || true)"
-          if [ -n "$upstream_latest" ] && [ "$latest_tag" != "$upstream_latest" ]; then
-            echo "::error::branch reflects '${latest_tag:-<none>}' but newest upstream release is '$upstream_latest'"
-            echo "::error::reconcile first, e.g. git merge $upstream_latest  (or scripts/reconcile-upstream.sh $upstream_latest)"
+          if [ -z "$latest_tag" ]; then
+            echo "::error::HEAD carries no upstream release tag"
             exit 1
           fi
 
-          if [ -n "${latest_tag}" ] && [[ "${latest_tag}" != *-* ]]; then
+          echo "latest_tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${latest_tag}" != *-* ]]; then
             echo "is_stable=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_stable=false" >> "$GITHUB_OUTPUT"
