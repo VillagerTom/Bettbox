@@ -75,6 +75,22 @@ jobs:
           - platform: android
             os: ubuntu-24.04
             arch: universal
+          - platform: android
+            os: ubuntu-24.04
+            arch: arm64
+            lite: true
+          - platform: android
+            os: ubuntu-24.04
+            arch: amd64
+            lite: true
+          - platform: android
+            os: ubuntu-24.04
+            arch: arm
+            lite: true
+          - platform: android
+            os: ubuntu-24.04
+            arch: universal
+            lite: true
 
     steps:
       - name: Checkout
@@ -163,13 +179,13 @@ jobs:
         run: |
           flutter pub get
           dart run build_runner build
-          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+          dart setup.dart ${{ matrix.platform }} --arch ${{ matrix.arch }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.lite == true && '--lite' || '' }}
 
       - name: Upload Artifacts (Android)
         if: matrix.platform == 'android'
         uses: actions/upload-artifact@v7
         with:
-          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}
+          name: Bettbox-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.lite == true && '-lite' || '' }}
           path: ./dist/*
           archive: false
           overwrite: true
