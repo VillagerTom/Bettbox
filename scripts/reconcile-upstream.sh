@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# reconcile-upstream.sh [TARGET]
+# reconcile-upstream.sh TARGET
 #
 # Strip from the fork branch the upstream commits that TARGET no longer
 # contains ("abandoned" commits), then make TARGET an ancestor of the branch.
@@ -14,9 +14,8 @@
 # where OLD is the upstream side of the branch's most recent merge (the second
 # parent, M^2) — i.e. the last upstream commit the branch adopted.
 #
-# TARGET defaults to the newest upstream release tag (vX.Y.Z[-preN]); pass any
-# upstream commit-ish otherwise (e.g. upstream/main, or a specific commit). The
-# "new tag" is just one instance of that.
+# TARGET is any upstream commit-ish: a release tag (vX.Y.Z[-preN]), upstream/main,
+# or a specific commit.
 #
 # Merge commits are reverted too (with `-m 1`): this branch never pushes
 # upstream, so nothing of ours lives inside an upstream merge and there is no
@@ -40,15 +39,13 @@ set -euo pipefail
 branch=${BRANCH:-android_legacy}
 remote=${UPSTREAM_REMOTE:-upstream}
 upstream_url=${UPSTREAM_URL:-https://github.com/appshubcc/Bettbox.git}
-release_re='^v[0-9]+\.[0-9]+\.[0-9]+(-pre[0-9]+)?$'
-exclude_re='-android-legacy$'
 
 say() { printf '==> %s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: reconcile-upstream.sh [TARGET]
+Usage: reconcile-upstream.sh TARGET
 
 Make TARGET an ancestor of the fork branch by reverting the upstream commits
 that TARGET no longer contains ("abandoned" commits), then merging TARGET.
@@ -56,9 +53,8 @@ Run it after upstream rewrites `main` (force-push) and the branch still carries
 commits from the old line.
 
 Arguments:
-  TARGET   upstream commit-ish to adopt; defaults to the newest upstream
-           release tag matching vX.Y.Z[-preN] (e.g. v1.19.8-pre1).
-           Examples: v1.19.8-pre1, upstream/main, a commit hash.
+  TARGET   upstream commit-ish to adopt (required).
+           Examples: v1.19.8, v1.19.8-pre1, upstream/main, a commit hash.
 
 Options:
   -h, --help   show this help and exit
@@ -100,7 +96,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ $# -le 1 ] || die "too many arguments (try --help)"
-target_arg=${1:-}
+target=${1:-}
+[ -n "$target" ] || die "TARGET is required (try --help)"
 
 # --- preconditions ---------------------------------------------------------
 for marker in REVERT_HEAD CHERRY_PICK_HEAD MERGE_HEAD; do
@@ -120,13 +117,7 @@ git remote get-url "$remote" >/dev/null 2>&1 || {
 say "fetching from $remote"
 git fetch --force "$remote" '+refs/heads/*:refs/remotes/'"$remote"'/*' '+refs/tags/*:refs/tags/*' >/dev/null
 
-# --- pick TARGET -----------------------------------------------------------
-if [ -n "$target_arg" ]; then
-  target=$target_arg
-else
-  target=$(git tag --list 'v*' | grep -E -- "$release_re" | grep -vE -- "$exclude_re" | sort -V | tail -n1 || true)
-fi
-[ -n "$target" ] || die "no TARGET and no upstream release tag matching $release_re"
+# --- resolve TARGET --------------------------------------------------------
 target_sha=$(git rev-parse --verify --quiet "${target}^{commit}") || die "unknown target: $target"
 say "TARGET             = $target [$(git log -1 --format='%h %s' "$target_sha")]"
 
